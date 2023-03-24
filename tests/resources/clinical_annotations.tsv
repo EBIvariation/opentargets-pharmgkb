@@ -1,0 +1,10 @@
+Clinical Annotation ID	Variant/Haplotypes	Gene	Level of Evidence	Level Override	Level Modifiers	Score	Phenotype Category	PMID Count	Evidence Count	Drug(s)	Phenotype(s)	Latest History Date (YYYY-MM-DD)	URL	Specialty Population
+1450375701	rs4659982	GREM2	3			0.0	Efficacy	1	1	allopurinol		2021-03-24	https://www.pharmgkb.org/clinicalAnnotation/1450375701	
+1043880328	rs4630	GSTT1	3			1.5	Toxicity	1	1	thalidomide	Multiple Myeloma	2021-03-24	https://www.pharmgkb.org/clinicalAnnotation/1043880328	
+1183680546	rs12979860	IFNL3;IFNL4	1A			213.25	Efficacy	5	7	boceprevir;peginterferon alfa-2a;peginterferon alfa-2b;ribavirin	Hepatitis C, Chronic	2021-03-24	https://www.pharmgkb.org/clinicalAnnotation/1183680546	
+981419260	HLA-B*58:01	HLA-B	1A		Tier 1 VIP	181.375	Toxicity	38	41	allopurinol	Drug Hypersensitivity;drug reaction with eosinophilia and systemic symptoms;Epidermal Necrolysis, Toxic;severe cutaneous adverse reactions;Stevens-Johnson Syndrome	2021-03-24	https://www.pharmgkb.org/clinicalAnnotation/981419260	Pediatric
+1449309937	rs121918596	RYR1	1A		Rare Variant; Tier 1 VIP	100.5	Toxicity	2	3	desflurane;enflurane;halothane;isoflurane;methoxyflurane;sevoflurane;succinylcholine	Malignant Hyperthermia	2021-03-24	https://www.pharmgkb.org/clinicalAnnotation/1449309937	Pediatric
+1447680028	rs371194629	HLA-G	3			3.25	Efficacy	1	1	capecitabine;fluorouracil	Colorectal Neoplasms	2021-03-24	https://www.pharmgkb.org/clinicalAnnotation/1447680028	
+1448603303	rs3766246	FAAH	3			3.0	Toxicity	1	1	morphine		2021-03-24	https://www.pharmgkb.org/clinicalAnnotation/1448603303	Pediatric
+1444668808	rs1799752	ACE	3		Tier 1 VIP	0.75	Efficacy	2	2	irbesartan	Hypertension;Hypertrophy, Left Ventricular	2021-09-09	https://www.pharmgkb.org/clinicalAnnotation/1444668808	
+1451114960	rs45445694	TYMS	3		Tier 1 VIP	3.25	Efficacy	13	13	fluorouracil;FOLFIRI;FOLFOX	overall survival;progression-free survival	2021-03-24	https://www.pharmgkb.org/clinicalAnnotation/1451114960	
