@@ -21,7 +21,7 @@ def pipeline(clinical_annot_path, clinical_alleles_path, created_date, output_pa
     clinical_annot_table = pd.read_csv(clinical_annot_path, sep='\t')
     clinical_alleles_table = pd.read_csv(clinical_alleles_path, sep='\t')
 
-    merged_table = pd.merge(clinical_annot_table, clinical_alleles_table, on='Clinical Annotation ID')
+    merged_table = pd.merge(clinical_annot_table, clinical_alleles_table, on='Clinical Annotation ID', how='left')
     rs_only_table = merged_table[merged_table['Variant/Haplotypes'].str.contains('rs')][pgkb_column_names]
 
     # Also provide a column with all genotypes for a given rs

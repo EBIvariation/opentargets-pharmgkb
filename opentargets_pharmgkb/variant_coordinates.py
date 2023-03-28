@@ -61,15 +61,12 @@ def get_coordinates_for_rs(rsid):
     resp = requests.get(ensembl_url)
     data = resp.json()
     if 'mappings' in data:
-        mapping = None
         for mapping in data['mappings']:
             if mapping['assembly_name'] == 'GRCh38':
-                break
-        if mapping:
-            chrom = mapping['seq_region_name']
-            pos = mapping['start']
-            alleles = mapping['allele_string'].split('/')
-            ref = alleles[0]
-            alts = alleles[1:]
-            return chrom, pos, ref, alts
+                chrom = mapping['seq_region_name']
+                pos = mapping['start']
+                alleles = mapping['allele_string'].split('/')
+                ref = alleles[0]
+                alts = alleles[1:]
+                return chrom, pos, ref, alts
     return None, None, None, None
