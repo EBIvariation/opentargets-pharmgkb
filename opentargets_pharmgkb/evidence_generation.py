@@ -17,19 +17,25 @@ pgkb_column_names = [
 ]
 
 
-def pipeline(clinical_annot_path, clinical_alleles_path, created_date, output_path):
+def pipeline(clinical_annot_path, clinical_alleles_path, genes_path, created_date, output_path):
     clinical_annot_table = pd.read_csv(clinical_annot_path, sep='\t')
     clinical_alleles_table = pd.read_csv(clinical_alleles_path, sep='\t')
+    genes_table = pd.read_csv(genes_path, sep='\t')
 
     merged_table = pd.merge(clinical_annot_table, clinical_alleles_table, on='Clinical Annotation ID', how='left')
+    # Restrict to variants with rsIDs
     rs_only_table = merged_table[merged_table['Variant/Haplotypes'].str.contains('rs')][pgkb_column_names]
 
     # Also provide a column with all genotypes for a given rs
     rs_only_table = pd.merge(rs_only_table, rs_only_table.groupby(by='Clinical Annotation ID').aggregate(
         all_genotypes=('Genotype/Allele', list)), on='Clinical Annotation ID')
 
+    # Explode on the 'Gene' column (which consists of gene symbols) and convert each to Ensembl gene ID
+    split_genes = rs_only_table.assign(split_gene=rs_only_table['Gene'].str.split(';')).explode('split_gene')
+    converted_genes = pd.merge(split_genes, genes_table, left_on='split_gene', right_on='Symbol')
+
     # Generate evidence
-    evidence = [generate_clinical_annotation_evidence(created_date, row) for _, row in rs_only_table.iterrows()]
+    evidence = [generate_clinical_annotation_evidence(created_date, row) for _, row in converted_genes.iterrows()]
     with open(output_path, 'w+') as output:
         output.write('\n'.join(json.dumps(ev) for ev in evidence))
 
@@ -50,7 +56,7 @@ def generate_clinical_annotation_evidence(created_date, row):
         # VARIANT ATTRIBUTES
         'variantId': vcf_full_coords,
         'variantRsId': row['Variant/Haplotypes'],
-        'targetFromSourceId': row['Gene'],  # TODO needs to be exploded & mapped
+        'targetFromSourceId': row['Ensembl Id'],
         # TODO need to use consequence prediction from clinvar repo
         'variantFunctionalConsequenceId': None,
         'variantOverlappingGeneId': None,

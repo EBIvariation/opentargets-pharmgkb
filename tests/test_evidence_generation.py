@@ -11,6 +11,7 @@ def test_pipeline():
     evidence_generation.pipeline(
         clinical_annot_path=os.path.join(resources_dir, 'clinical_annotations.tsv'),
         clinical_alleles_path=os.path.join(resources_dir, 'clinical_ann_alleles.tsv'),
+        genes_path=os.path.join(resources_dir, 'genes.tsv'),
         created_date='2023-03-23',
         output_path=output_path
     )
