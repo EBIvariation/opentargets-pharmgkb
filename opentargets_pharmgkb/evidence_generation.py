@@ -1,6 +1,7 @@
 import json
 
 import pandas as pd
+from cmat.consequence_prediction.common.biomart import query_biomart
 
 from opentargets_pharmgkb.variant_coordinates import get_coordinates_for_clinical_annotation
 
@@ -17,10 +18,9 @@ pgkb_column_names = [
 ]
 
 
-def pipeline(clinical_annot_path, clinical_alleles_path, genes_path, created_date, output_path):
+def pipeline(clinical_annot_path, clinical_alleles_path, created_date, output_path):
     clinical_annot_table = pd.read_csv(clinical_annot_path, sep='\t')
     clinical_alleles_table = pd.read_csv(clinical_alleles_path, sep='\t')
-    genes_table = pd.read_csv(genes_path, sep='\t')
 
     merged_table = pd.merge(clinical_annot_table, clinical_alleles_table, on='Clinical Annotation ID', how='left')
     # Restrict to variants with rsIDs
@@ -32,7 +32,14 @@ def pipeline(clinical_annot_path, clinical_alleles_path, genes_path, created_dat
 
     # Explode on the 'Gene' column (which consists of gene symbols) and convert each to Ensembl gene ID
     split_genes = rs_only_table.assign(split_gene=rs_only_table['Gene'].str.split(';')).explode('split_gene')
-    converted_genes = pd.merge(split_genes, genes_table, left_on='split_gene', right_on='Symbol')
+    ensembl_ids = query_biomart(
+        ('hgnc_symbol', 'split_gene'),
+        ('ensembl_gene_id', 'ensembl_gene_id'),
+        split_genes['split_gene'].drop_duplicates().tolist()
+    )
+    converted_genes = pd.merge(split_genes, ensembl_ids, on='split_gene')
+    # HGNC could map to more than one ensembl gene id, so must explode again
+    converted_genes = converted_genes.explode('ensembl_gene_id')
 
     # Generate evidence
     evidence = [generate_clinical_annotation_evidence(created_date, row) for _, row in converted_genes.iterrows()]
@@ -56,7 +63,7 @@ def generate_clinical_annotation_evidence(created_date, row):
         # VARIANT ATTRIBUTES
         'variantId': vcf_full_coords,
         'variantRsId': row['Variant/Haplotypes'],
-        'targetFromSourceId': row['Ensembl Id'],
+        'targetFromSourceId': row['ensembl_gene_id'],
         # TODO need to use consequence prediction from clinvar repo
         'variantFunctionalConsequenceId': None,
         'variantOverlappingGeneId': None,
