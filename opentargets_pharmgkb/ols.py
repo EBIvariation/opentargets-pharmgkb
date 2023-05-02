@@ -24,8 +24,7 @@ def get_chebi_iri(drug_name):
         results = data['response']['docs']
         candidates = set()
         for result in results:
-            # Check that we've found the drug exactly
-            # TODO this is too strict for e.g. fluorouracil, which is in drugs.tsv as 5-fluorouracil (CHEBI:46345)
+            # Check that we've found the drug exactly (strict case-insensitive string match)
             if result['label'].lower() == drug_name.lower():
                 candidates.add(result['iri'])
         # Only return a result if we can find it unambiguously
