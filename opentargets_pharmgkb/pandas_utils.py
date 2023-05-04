@@ -8,6 +8,7 @@ def none_to_nan(x):
 def explode_column(df, source_col, target_col, sep=';'):
     """
     Splits a string-valued column in dataframe and explodes on the values, storing them in the specified target column.
+    Any white space around the separator will be stripped.
 
     :param df: Pandas dataframe
     :param source_col: name of column in df to split
