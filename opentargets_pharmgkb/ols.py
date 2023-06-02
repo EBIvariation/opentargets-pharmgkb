@@ -3,6 +3,7 @@ import os
 from functools import lru_cache
 
 import requests
+from cmat.trait_mapping.zooma import get_zooma_results
 from requests import RequestException
 from retry import retry
 
@@ -32,3 +33,26 @@ def get_chebi_iri(drug_name):
             return candidates.pop()
     logger.warning(f'Could not find a CHEBI IRI for {drug_name}')
     return None
+
+
+@lru_cache
+@retry(exceptions=(ConnectionError, RequestException), tries=4, delay=2, backoff=1.2, jitter=(1, 3))
+def get_efo_iri(phenotype_name):
+    if not phenotype_name:
+        return ''
+    filters = {'ontologies': 'efo,ordo,hp,mondo',
+               'required': 'cttv,eva-clinvar,clinvar-xrefs,gwas',  # TODO do we want all of these?
+               'preferred': 'eva-clinvar,cttv,gwas,clinvar-xrefs'}
+    zooma_results = get_zooma_results(phenotype_name, filters=filters, zooma_host='https://www.ebi.ac.uk')
+    current_efo_uris = []
+    for result in zooma_results:
+        if result.confidence.lower() != "high":
+            continue
+        for mapping in result.mapping_list:
+            if mapping.in_efo and mapping.is_current:
+                current_efo_uris.append(mapping.uri)
+    if len(current_efo_uris) > 1:
+        raise ValueError(f'Found multiple high-confidence mappings for {phenotype_name}: {",".join(current_efo_uris)}')
+    if len(current_efo_uris) == 0:
+        return ''
+    return current_efo_uris[0]

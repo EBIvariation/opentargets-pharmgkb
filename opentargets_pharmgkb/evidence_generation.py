@@ -4,7 +4,7 @@ import multiprocessing
 import pandas as pd
 from cmat.consequence_prediction.common.biomart import query_biomart
 
-from opentargets_pharmgkb.ols import get_chebi_iri
+from opentargets_pharmgkb.ols import get_chebi_iri, get_efo_iri
 from opentargets_pharmgkb.pandas_utils import none_to_nan, explode_column
 from opentargets_pharmgkb.variant_coordinates import get_coordinates_for_clinical_annotation
 
@@ -12,10 +12,10 @@ ID_COL_NAME = 'Clinical Annotation ID'
 
 
 def pipeline(clinical_annot_path, clinical_alleles_path, clinical_evidence_path, drugs_path, created_date, output_path):
-    clinical_annot_table = pd.read_csv(clinical_annot_path, sep='\t')
-    clinical_alleles_table = pd.read_csv(clinical_alleles_path, sep='\t')
-    clinical_evidence_table = pd.read_csv(clinical_evidence_path, sep='\t')
-    drugs_table = pd.read_csv(drugs_path, sep='\t')
+    clinical_annot_table = read_tsv_to_df(clinical_annot_path)
+    clinical_alleles_table = read_tsv_to_df(clinical_alleles_path)
+    clinical_evidence_table = read_tsv_to_df(clinical_evidence_path)
+    drugs_table = read_tsv_to_df(drugs_path)
 
     merged_table = pd.merge(clinical_annot_table, clinical_alleles_table, on=ID_COL_NAME, how='left')
     # Restrict to variants with rsIDs
@@ -26,16 +26,21 @@ def pipeline(clinical_annot_path, clinical_alleles_path, clinical_evidence_path,
 
     mapped_genes = explode_and_map_genes(rs_only_table)
     mapped_drugs = explode_and_map_drugs(mapped_genes, drugs_table)
+    mapped_phenotypes = explode_and_map_phenotypes(mapped_drugs)
 
     # Add clinical evidence with PMIDs
-    pmid_evidence = clinical_evidence_table[clinical_evidence_table['PMID'].notna()].astype({'PMID': 'int'})
-    evidence_table = pd.merge(mapped_drugs, pmid_evidence.groupby(by=ID_COL_NAME).aggregate(
+    pmid_evidence = clinical_evidence_table[clinical_evidence_table['PMID'].notna()]
+    evidence_table = pd.merge(mapped_phenotypes, pmid_evidence.groupby(by=ID_COL_NAME).aggregate(
         publications=('PMID', list)), on=ID_COL_NAME)
 
     # Generate evidence
     evidence = [generate_clinical_annotation_evidence(created_date, row) for _, row in evidence_table.iterrows()]
     with open(output_path, 'w+') as output:
         output.write('\n'.join(json.dumps(ev) for ev in evidence))
+
+
+def read_tsv_to_df(path):
+    return pd.read_csv(path, sep='\t', dtype=str)
 
 
 def explode_and_map_genes(df):
@@ -89,6 +94,28 @@ def chebi_id_to_iri(id_):
     return f'http://purl.obolibrary.org/obo/CHEBI_{id_}'
 
 
+def explode_and_map_phenotypes(df):
+    """
+    Maps phenotype text to EFO IRIs using Zooma. Explodes multiple phenotypes in single row.
+
+    :param df: dataframe to annotate (should have a 'Phenotype(s)' column)
+    :return: dataframe with 'efo' column added
+    """
+    df['Phenotype(s)'].fillna('', inplace=True)
+    split_phenotypes = explode_column(df, 'Phenotype(s)', 'split_phenotype')
+    with multiprocessing.Pool(processes=24) as pool:
+        str_to_iri = {
+            s: pool.apply(get_efo_iri, args=(s,))
+            for s in split_phenotypes['split_phenotype'].drop_duplicates().tolist()
+        }
+    mapped_phenotypes = pd.concat(
+        split_phenotypes[split_phenotypes['split_phenotype'] == s].assign(efo=none_to_nan(iri))
+        for s, iri in str_to_iri.items()
+    )
+    # TODO mapping rate seems not great, improve with PGKB primary data?
+    return mapped_phenotypes
+
+
 def generate_clinical_annotation_evidence(created_date, row):
     """Generates an evidence string for a PharmGKB clinical annotation."""
     vcf_full_coords = get_coordinates_for_clinical_annotation(row['Variant/Haplotypes'], row['all_genotypes'])
@@ -119,7 +146,8 @@ def generate_clinical_annotation_evidence(created_date, row):
         'drugText': row['split_drug'],
         'drugId': row['chebi'],
         'pgxCategory': row['Phenotype Category'],
-        'phenotypeFromSourceId': row['Phenotype(s)']  # TODO EFO - needs to be exploded & mapped
+        'phenotypeText': row['split_phenotype'],
+        'phenotypeFromSourceId': row['efo']
     }
     # Remove the attributes with empty values (either None or empty lists).
     evidence_string = {key: value for key, value in evidence_string.items()
