@@ -3,7 +3,8 @@ import os
 from functools import lru_cache
 
 import requests
-from cmat.trait_mapping.zooma import get_zooma_results
+from cmat.trait_mapping.main import process_trait
+from cmat.trait_mapping.trait import Trait
 from requests import RequestException
 from retry import retry
 
@@ -11,7 +12,8 @@ logging.basicConfig()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-OLS_API_ROOT = 'https://www.ebi.ac.uk/ols/api'
+HOST = 'https://www.ebi.ac.uk'
+OLS_API_ROOT = f'{HOST}/ols/api'
 
 
 @lru_cache
@@ -39,20 +41,23 @@ def get_chebi_iri(drug_name):
 @retry(exceptions=(ConnectionError, RequestException), tries=4, delay=2, backoff=1.2, jitter=(1, 3))
 def get_efo_iri(phenotype_name):
     if not phenotype_name:
-        return ''
+        return None
+
+    # Trait to store Zooma/OxO results - other attributes not used
+    trait = Trait(phenotype_name, None, None)
+    # Defaults from CMAT
     filters = {'ontologies': 'efo,ordo,hp,mondo',
-               'required': 'cttv,eva-clinvar,clinvar-xrefs,gwas',  # TODO do we want all of these?
+               'required': 'cttv,eva-clinvar,clinvar-xrefs,gwas',
                'preferred': 'eva-clinvar,cttv,gwas,clinvar-xrefs'}
-    zooma_results = get_zooma_results(phenotype_name, filters=filters, zooma_host='https://www.ebi.ac.uk')
-    current_efo_uris = []
-    for result in zooma_results:
-        if result.confidence.lower() != "high":
-            continue
-        for mapping in result.mapping_list:
-            if mapping.in_efo and mapping.is_current:
-                current_efo_uris.append(mapping.uri)
-    if len(current_efo_uris) > 1:
-        raise ValueError(f'Found multiple high-confidence mappings for {phenotype_name}: {",".join(current_efo_uris)}')
-    if len(current_efo_uris) == 0:
-        return ''
-    return current_efo_uris[0]
+    oxo_targets = ['Orphanet', 'efo', 'hp', 'mondo']
+    oxo_distance = 1  # Only use distance 1 without manual curation
+
+    processed_trait = process_trait(trait, filters, HOST, oxo_targets, oxo_distance)
+    if processed_trait.is_finished:
+        efo_uris = [ontology_entry.uri for ontology_entry in processed_trait.finished_mapping_set]
+        if len(efo_uris) > 1:
+            # Don't expect multiple mappings for PharmGKB phenotypes
+            logger.warning(f'Found multiple mappings for {phenotype_name}: {",".join(efo_uris)}')
+            return None
+        return efo_uris[0]
+    return None

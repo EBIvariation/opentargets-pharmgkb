@@ -1,10 +1,12 @@
 import json
 import multiprocessing
+from itertools import zip_longest
 
 import pandas as pd
 from cmat.consequence_prediction.common.biomart import query_biomart
+from cmat.consequence_prediction.snp_indel_variants.pipeline import process_variants
 
-from opentargets_pharmgkb.ols import get_chebi_iri, get_efo_iri
+from opentargets_pharmgkb.ontology_apis import get_chebi_iri, get_efo_iri
 from opentargets_pharmgkb.pandas_utils import none_to_nan, explode_column
 from opentargets_pharmgkb.variant_coordinates import get_coordinates_for_clinical_annotation
 
@@ -20,11 +22,10 @@ def pipeline(clinical_annot_path, clinical_alleles_path, clinical_evidence_path,
     merged_table = pd.merge(clinical_annot_table, clinical_alleles_table, on=ID_COL_NAME, how='left')
     # Restrict to variants with rsIDs
     rs_only_table = merged_table[merged_table['Variant/Haplotypes'].str.contains('rs')]
-    # Also provide a column with all genotypes for a given rs
-    rs_only_table = pd.merge(rs_only_table, rs_only_table.groupby(by=ID_COL_NAME).aggregate(
-        all_genotypes=('Genotype/Allele', list)), on=ID_COL_NAME)
 
-    mapped_genes = explode_and_map_genes(rs_only_table)
+    coordinates_table = get_vcf_coordinates(rs_only_table)
+    consequences_table = get_functional_consequences(coordinates_table)
+    mapped_genes = explode_and_map_genes(consequences_table)
     mapped_drugs = explode_and_map_drugs(mapped_genes, drugs_table)
     mapped_phenotypes = explode_and_map_phenotypes(mapped_drugs)
 
@@ -41,6 +42,67 @@ def pipeline(clinical_annot_path, clinical_alleles_path, clinical_evidence_path,
 
 def read_tsv_to_df(path):
     return pd.read_csv(path, sep='\t', dtype=str)
+
+
+def get_vcf_coordinates(df):
+    """
+    Get VCF-style coordinates (chr_pos_ref_alt) for dataframe.
+
+    :param df: dataframe to annotate (needs 'Genotype/Allele' and 'Variant/Haplotypes' columns)
+    :return: dataframe with 'vcf_coords' column added
+    """
+    # First set a column with all genotypes for a given rs
+    df_with_coords = pd.merge(df, df.groupby(by=ID_COL_NAME).aggregate(
+        all_genotypes=('Genotype/Allele', list)), on=ID_COL_NAME)
+    # Then get coordinates for each row
+    for i, row in df_with_coords.iterrows():
+        df_with_coords.at[i, 'vcf_coords'] = get_coordinates_for_clinical_annotation(
+            row['Variant/Haplotypes'], row['all_genotypes'])
+    return df_with_coords
+
+
+def get_functional_consequences(df):
+    """
+    Get functional consequences from VEP.
+
+    :param df: dataframe to annotate (needs 'vcf_coords' column)
+    :return: dataframe with 'overlapping_gene' and 'consequence_term' columns added
+    """
+    vep_id_to_coords = {
+        coord_id_to_vep_id(x): x for x in df['vcf_coords'].dropna().drop_duplicates().tolist()
+    }
+    with multiprocessing.Pool(processes=24) as pool:
+        all_consequences = [
+            pool.apply(process_to_list, args=(batch,))
+            for batch in grouper(vep_id_to_coords.keys(), 200)
+        ]
+    mapped_consequences = pd.DataFrame(data=[
+        {
+            'vcf_coords': vep_id_to_coords[variant_id],
+            'overlapping_gene': gene_id,
+            'consequence_term': consequence_term
+        }
+        for batch in all_consequences
+        for variant_id, gene_id, gene_symbol, consequence_term in batch
+    ])
+    return pd.merge(df, mapped_consequences, on='vcf_coords', how='left')
+
+
+def coord_id_to_vep_id(coord_id):
+    """Converts an underscore-separated coordinate identifier (e.g. 15_7237571_C_T) to VEP compatible one."""
+    id_fields = coord_id.split('_')
+    assert len(id_fields) == 4, 'Invalid identifier supplied (should contain exactly 4 fields)'
+    return '{} {} . {} {}'.format(*id_fields)
+
+
+def grouper(iterable, n):
+    args = [iter(iterable)] * n
+    return [x for x in zip_longest(*args, fillvalue=None) if x is not None]
+
+
+def process_to_list(b):
+    """Wrapper for process_variants because multiprocessing does not like generators."""
+    return list(process_variants(b))
 
 
 def explode_and_map_genes(df):
@@ -112,13 +174,11 @@ def explode_and_map_phenotypes(df):
         split_phenotypes[split_phenotypes['split_phenotype'] == s].assign(efo=none_to_nan(iri))
         for s, iri in str_to_iri.items()
     )
-    # TODO mapping rate seems not great, improve with PGKB primary data?
     return mapped_phenotypes
 
 
 def generate_clinical_annotation_evidence(created_date, row):
     """Generates an evidence string for a PharmGKB clinical annotation."""
-    vcf_full_coords = get_coordinates_for_clinical_annotation(row['Variant/Haplotypes'], row['all_genotypes'])
     evidence_string = {
         # DATA SOURCE ATTRIBUTES
         'datasourceId': 'pharmgkb',
@@ -131,12 +191,11 @@ def generate_clinical_annotation_evidence(created_date, row):
         'literature': [str(x) for x in row['publications']],
 
         # VARIANT ATTRIBUTES
-        'variantId': vcf_full_coords,
+        'variantId': row['vcf_coords'],
         'variantRsId': row['Variant/Haplotypes'],
         'targetFromSourceId': row['ensembl_gene_id'],
-        # TODO need to use consequence prediction from clinvar repo
-        'variantFunctionalConsequenceId': None,
-        'variantOverlappingGeneId': None,
+        'variantFunctionalConsequenceId': row['consequence_term'],
+        'variantOverlappingGeneId': row['overlapping_gene'],
 
         # GENOTYPE ATTRIBUTES
         'genotype': row['Genotype/Allele'],
