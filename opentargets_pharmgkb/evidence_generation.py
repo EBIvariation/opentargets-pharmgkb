@@ -115,12 +115,12 @@ def explode_and_map_genes(df):
     split_genes = explode_column(df, 'Gene', 'split_gene')
     ensembl_ids = query_biomart(
         ('hgnc_symbol', 'split_gene'),
-        ('ensembl_gene_id', 'ensembl_gene_id'),
+        ('ensembl_gene_id', 'gene_from_pgkb'),
         split_genes['split_gene'].drop_duplicates().tolist()
     )
     mapped_genes = pd.merge(split_genes, ensembl_ids, on='split_gene')
     # HGNC could map to more than one ensembl gene id, so must explode again
-    mapped_genes = mapped_genes.explode('ensembl_gene_id').reset_index(drop=True)
+    mapped_genes = mapped_genes.explode('gene_from_pgkb').reset_index(drop=True)
     return mapped_genes
 
 
@@ -193,7 +193,7 @@ def generate_clinical_annotation_evidence(created_date, row):
         # VARIANT ATTRIBUTES
         'variantId': row['vcf_coords'],
         'variantRsId': row['Variant/Haplotypes'],
-        'targetFromSourceId': row['ensembl_gene_id'],
+        'targetFromSourceId': row['gene_from_pgkb'],
         'variantFunctionalConsequenceId': row['consequence_term'],
         'variantOverlappingGeneId': row['overlapping_gene'],
 

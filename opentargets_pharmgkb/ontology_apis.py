@@ -15,6 +15,13 @@ logger.setLevel(logging.INFO)
 HOST = 'https://www.ebi.ac.uk'
 OLS_API_ROOT = f'{HOST}/ols/api'
 
+# Defaults from CMAT for getting EFO mappings that don't require manual curation
+zooma_filters = {'ontologies': 'efo,ordo,hp,mondo',
+                 'required': 'cttv,eva-clinvar,clinvar-xrefs,gwas',
+                 'preferred': 'eva-clinvar,cttv,gwas,clinvar-xrefs'}
+oxo_targets = ['Orphanet', 'efo', 'hp', 'mondo']
+oxo_distance = 1
+
 
 @lru_cache
 @retry(exceptions=(ConnectionError, RequestException), tries=4, delay=2, backoff=1.2, jitter=(1, 3))
@@ -45,14 +52,7 @@ def get_efo_iri(phenotype_name):
 
     # Trait to store Zooma/OxO results - other attributes not used
     trait = Trait(phenotype_name, None, None)
-    # Defaults from CMAT
-    filters = {'ontologies': 'efo,ordo,hp,mondo',
-               'required': 'cttv,eva-clinvar,clinvar-xrefs,gwas',
-               'preferred': 'eva-clinvar,cttv,gwas,clinvar-xrefs'}
-    oxo_targets = ['Orphanet', 'efo', 'hp', 'mondo']
-    oxo_distance = 1  # Only use distance 1 without manual curation
-
-    processed_trait = process_trait(trait, filters, HOST, oxo_targets, oxo_distance)
+    processed_trait = process_trait(trait, zooma_filters, HOST, oxo_targets, oxo_distance)
     if processed_trait.is_finished:
         efo_uris = [ontology_entry.uri for ontology_entry in processed_trait.finished_mapping_set]
         if len(efo_uris) > 1:
