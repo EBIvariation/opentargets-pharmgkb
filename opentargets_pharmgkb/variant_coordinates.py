@@ -64,6 +64,9 @@ def get_coordinates_for_rs(rsid):
         for mapping in data['mappings']:
             if mapping['assembly_name'] == 'GRCh38':
                 chrom = mapping['seq_region_name']
+                # Skip things like CHR_HSCHR22_1_CTG7
+                if '_' in chrom:
+                    continue
                 pos = mapping['start']
                 alleles = mapping['allele_string'].split('/')
                 ref = alleles[0]
