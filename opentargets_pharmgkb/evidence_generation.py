@@ -6,6 +6,7 @@ import pandas as pd
 from cmat.consequence_prediction.common.biomart import query_biomart
 from cmat.consequence_prediction.snp_indel_variants.pipeline import process_variants
 
+from opentargets_pharmgkb.counts import ClinicalAnnotationCounts
 from opentargets_pharmgkb.ontology_apis import get_chebi_iri, get_efo_iri
 from opentargets_pharmgkb.pandas_utils import none_to_nan, explode_column
 from opentargets_pharmgkb.variant_coordinates import get_coordinates_for_clinical_annotation
@@ -19,11 +20,17 @@ def pipeline(clinical_annot_path, clinical_alleles_path, clinical_evidence_path,
     clinical_evidence_table = read_tsv_to_df(clinical_evidence_path)
     drugs_table = read_tsv_to_df(drugs_path)
 
-    merged_table = pd.merge(clinical_annot_table, clinical_alleles_table, on=ID_COL_NAME, how='left')
     # Restrict to variants with rsIDs
-    rs_only_table = merged_table[merged_table['Variant/Haplotypes'].str.contains('rs')]
+    rs_only_table = clinical_annot_table[clinical_annot_table['Variant/Haplotypes'].str.contains('rs')]
 
-    coordinates_table = get_vcf_coordinates(rs_only_table)
+    # Gather input counts
+    counts = ClinicalAnnotationCounts()
+    counts.clinical_annotations = len(clinical_annot_table)
+    counts.with_rs = len(rs_only_table)
+
+    # Main processing
+    merged_with_alleles_table = pd.merge(rs_only_table, clinical_alleles_table, on=ID_COL_NAME, how='left')
+    coordinates_table = get_vcf_coordinates(merged_with_alleles_table)
     consequences_table = get_functional_consequences(coordinates_table)
     mapped_genes = explode_and_map_genes(consequences_table)
     mapped_drugs = explode_and_map_drugs(mapped_genes, drugs_table)
@@ -33,6 +40,12 @@ def pipeline(clinical_annot_path, clinical_alleles_path, clinical_evidence_path,
     pmid_evidence = clinical_evidence_table[clinical_evidence_table['PMID'].notna()]
     evidence_table = pd.merge(mapped_phenotypes, pmid_evidence.groupby(by=ID_COL_NAME).aggregate(
         publications=('PMID', list)), on=ID_COL_NAME)
+
+    # Gather output counts
+    counts.evidence_strings = len(evidence_table)
+    counts.with_chebi = evidence_table['chebi'].count()
+    counts.with_efo = evidence_table['efo'].count()
+    counts.report()
 
     # Generate evidence
     evidence = [generate_clinical_annotation_evidence(created_date, row) for _, row in evidence_table.iterrows()]
