@@ -45,6 +45,13 @@ def pipeline(clinical_annot_path, clinical_alleles_path, clinical_evidence_path,
     counts.evidence_strings = len(evidence_table)
     counts.with_chebi = evidence_table['chebi'].count()
     counts.with_efo = evidence_table['efo'].count()
+    counts.with_consequence = evidence_table['consequence_term'].count()
+    counts.with_pgkb_gene = evidence_table['gene_from_pgkb'].count()
+    counts.with_vep_gene = evidence_table['overlapping_gene'].count()
+    counts.pgkb_vep_gene_diff = len(evidence_table[
+        evidence_table['gene_from_pgkb'].notna() & evidence_table['overlapping_gene'].notna() &
+        (evidence_table['gene_from_pgkb'] != evidence_table['overlapping_gene'])
+    ])
     counts.report()
 
     # Generate evidence
@@ -98,6 +105,8 @@ def get_functional_consequences(df):
         for batch in all_consequences
         for variant_id, gene_id, gene_symbol, consequence_term in batch
     ])
+    # TODO does this explode by gene/conseq correctly?
+    #  How do we match with the appropriate PGKB gene if there are multiple?
     return pd.merge(df, mapped_consequences, on='vcf_coords', how='left')
 
 

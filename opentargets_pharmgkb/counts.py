@@ -9,6 +9,10 @@ class ClinicalAnnotationCounts:
         self.evidence_strings = 0
         self.with_chebi = 0
         self.with_efo = 0
+        self.with_consequence = 0
+        self.with_pgkb_gene = 0
+        self.with_vep_gene = 0
+        self.pgkb_vep_gene_diff = 0
 
     def report(self):
         report_str = f'\nTotal clinical annotations: {self.clinical_annotations}\n'
@@ -16,5 +20,9 @@ class ClinicalAnnotationCounts:
         report_str += f'Total evidence strings: {self.evidence_strings}\n'
         report_str += f'\tWith CHEBI: {self.with_chebi}\n'
         report_str += f'\tWith EFO phenotype: {self.with_efo}\n'
+        report_str += f'\tWith functional consequence: {self.with_consequence}\n'
+        report_str += f'\tWith PGKB gene: {self.with_pgkb_gene}\n'
+        report_str += f'\tWith VEP gene: {self.with_vep_gene}\n'
+        report_str += f'\t\tPGKB gene != VEP gene: {self.pgkb_vep_gene_diff}\n'
         print(report_str)
         return report_str
