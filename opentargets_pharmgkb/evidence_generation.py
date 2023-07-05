@@ -105,8 +105,6 @@ def get_functional_consequences(df):
         for batch in all_consequences
         for variant_id, gene_id, gene_symbol, consequence_term in batch
     ])
-    # TODO does this explode by gene/conseq correctly?
-    #  How do we match with the appropriate PGKB gene if there are multiple?
     return pd.merge(df, mapped_consequences, on='vcf_coords', how='left')
 
 
@@ -175,7 +173,9 @@ def explode_and_map_drugs(df, drugs_table):
 
 
 def chebi_id_to_iri(id_):
-    return f'http://purl.obolibrary.org/obo/CHEBI_{id_}'
+    if pd.notna(id_):
+        return f'http://purl.obolibrary.org/obo/CHEBI_{id_}'
+    return None
 
 
 def explode_and_map_phenotypes(df):
