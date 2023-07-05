@@ -32,8 +32,8 @@ def pipeline(clinical_annot_path, clinical_alleles_path, clinical_evidence_path,
     merged_with_alleles_table = pd.merge(rs_only_table, clinical_alleles_table, on=ID_COL_NAME, how='left')
     coordinates_table = get_vcf_coordinates(merged_with_alleles_table)
     consequences_table = get_functional_consequences(coordinates_table)
-    mapped_genes = explode_and_map_genes(consequences_table)
-    mapped_drugs = explode_and_map_drugs(mapped_genes, drugs_table)
+    # mapped_genes = explode_and_map_genes(consequences_table)
+    mapped_drugs = explode_and_map_drugs(consequences_table, drugs_table)
     mapped_phenotypes = explode_and_map_phenotypes(mapped_drugs)
 
     # Add clinical evidence with PMIDs
@@ -46,18 +46,17 @@ def pipeline(clinical_annot_path, clinical_alleles_path, clinical_evidence_path,
     counts.with_chebi = evidence_table['chebi'].count()
     counts.with_efo = evidence_table['efo'].count()
     counts.with_consequence = evidence_table['consequence_term'].count()
-    counts.with_pgkb_gene = evidence_table['gene_from_pgkb'].count()
+    # counts.with_pgkb_gene = evidence_table['gene_from_pgkb'].count()
     counts.with_vep_gene = evidence_table['overlapping_gene'].count()
-    counts.pgkb_vep_gene_diff = len(evidence_table[
-        evidence_table['gene_from_pgkb'].notna() & evidence_table['overlapping_gene'].notna() &
-        (evidence_table['gene_from_pgkb'] != evidence_table['overlapping_gene'])
-    ])
-    counts.report()
 
     # Generate evidence
     evidence = [generate_clinical_annotation_evidence(created_date, row) for _, row in evidence_table.iterrows()]
     with open(output_path, 'w+') as output:
         output.write('\n'.join(json.dumps(ev) for ev in evidence))
+
+    # Final count report
+    gene_comparison_counts(evidence_table, counts)
+    counts.report()
 
 
 def read_tsv_to_df(path):
@@ -215,16 +214,16 @@ def generate_clinical_annotation_evidence(created_date, row):
         # VARIANT ATTRIBUTES
         'variantId': row['vcf_coords'],
         'variantRsId': row['Variant/Haplotypes'],
-        'targetFromSourceId': row['gene_from_pgkb'],
+        # 'originalSourceGeneId': row['gene_from_pgkb'],
         'variantFunctionalConsequenceId': row['consequence_term'],
-        'variantOverlappingGeneId': row['overlapping_gene'],
+        'targetFromSourceId': row['overlapping_gene'],
 
         # GENOTYPE ATTRIBUTES
         'genotype': row['Genotype/Allele'],
         'genotypeAnnotationText': row['Annotation Text'],
 
         # PHENOTYPE ATTRIBUTES
-        'drugText': row['split_drug'],
+        'drugFromSource': row['split_drug'],
         'drugId': row['chebi'],
         'pgxCategory': row['Phenotype Category'],
         'phenotypeText': row['split_phenotype'],
@@ -234,3 +233,15 @@ def generate_clinical_annotation_evidence(created_date, row):
     evidence_string = {key: value for key, value in evidence_string.items()
                        if value and (isinstance(value, list) or pd.notna(value))}
     return evidence_string
+
+
+def gene_comparison_counts(df, counts):
+    # Map PGKB genes
+    mapped_genes = explode_and_map_genes(df)
+    # Re-group by ID column
+    genes_table = mapped_genes.groupby(by=ID_COL_NAME).aggregate(
+        all_pgkb_genes=('gene_from_pgkb', set),
+        all_vep_genes=('overlapping_gene', set)
+    )
+    # Compare sets of genes
+    counts.pgkb_vep_gene_diff = len(genes_table[genes_table['all_pgkb_genes'] != genes_table['all_vep_genes']])
