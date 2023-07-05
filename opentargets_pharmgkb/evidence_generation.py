@@ -55,7 +55,7 @@ def pipeline(clinical_annot_path, clinical_alleles_path, clinical_evidence_path,
         output.write('\n'.join(json.dumps(ev) for ev in evidence))
 
     # Final count report
-    gene_comparison_counts(evidence_table, counts)
+    gene_comparison_counts(evidence_table, counts, debug_path=f'{output_path}_genes.csv')
     counts.report()
 
 
@@ -235,7 +235,7 @@ def generate_clinical_annotation_evidence(created_date, row):
     return evidence_string
 
 
-def gene_comparison_counts(df, counts):
+def gene_comparison_counts(df, counts, debug_path=None):
     # Map PGKB genes
     mapped_genes = explode_and_map_genes(df)
     # Re-group by ID column
@@ -245,3 +245,6 @@ def gene_comparison_counts(df, counts):
     )
     # Compare sets of genes
     counts.pgkb_vep_gene_diff = len(genes_table[genes_table['all_pgkb_genes'] != genes_table['all_vep_genes']])
+    # Debug dump genes table
+    if debug_path:
+        genes_table.to_csv(debug_path)
