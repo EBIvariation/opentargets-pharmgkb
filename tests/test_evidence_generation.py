@@ -31,10 +31,7 @@ def test_pipeline():
     output_path = os.path.join(resources_dir, 'test_output.json')
     expected_path = os.path.join(resources_dir, 'expected_output.json')
     evidence_generation.pipeline(
-        clinical_annot_path=os.path.join(resources_dir, 'clinical_annotations.tsv'),
-        clinical_alleles_path=os.path.join(resources_dir, 'clinical_ann_alleles.tsv'),
-        clinical_evidence_path=os.path.join(resources_dir, 'clinical_ann_evidence.tsv'),
-        drugs_path=os.path.join(resources_dir, 'drugs.tsv'),
+        data_dir=resources_dir,
         created_date='2023-03-23',
         output_path=output_path
     )

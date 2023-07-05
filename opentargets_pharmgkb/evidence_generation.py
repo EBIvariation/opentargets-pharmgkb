@@ -1,5 +1,6 @@
 import json
 import multiprocessing
+import os
 from itertools import zip_longest
 
 import pandas as pd
@@ -14,7 +15,13 @@ from opentargets_pharmgkb.variant_coordinates import get_coordinates_for_clinica
 ID_COL_NAME = 'Clinical Annotation ID'
 
 
-def pipeline(clinical_annot_path, clinical_alleles_path, clinical_evidence_path, drugs_path, created_date, output_path):
+def pipeline(data_dir, created_date, output_path):
+    # TODO test file existence
+    clinical_annot_path = os.path.join(data_dir, 'clinical_annotations.tsv')
+    clinical_alleles_path = os.path.join(data_dir, 'clinical_ann_alleles.tsv')
+    clinical_evidence_path = os.path.join(data_dir, 'clinical_ann_evidence.tsv')
+    drugs_path = os.path.join(data_dir, 'drugs.tsv')
+
     clinical_annot_table = read_tsv_to_df(clinical_annot_path)
     clinical_alleles_table = read_tsv_to_df(clinical_alleles_path)
     clinical_evidence_table = read_tsv_to_df(clinical_evidence_path)
