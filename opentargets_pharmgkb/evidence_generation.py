@@ -70,7 +70,7 @@ def pipeline(data_dir, created_date, output_path):
         output.write('\n'.join(json.dumps(ev) for ev in evidence))
 
     # Final count report
-    gene_comparison_counts(evidence_table, counts, debug_path=f'{output_path}_genes.csv')
+    gene_comparison_counts(evidence_table, counts, debug_path=f'{output_path.rsplit(".", 1)[0]}_genes.csv')
     counts.report()
 
 
@@ -255,11 +255,14 @@ def gene_comparison_counts(df, counts, debug_path=None):
     mapped_genes = explode_and_map_genes(df)
     # Re-group by ID column
     genes_table = mapped_genes.groupby(by=ID_COL_NAME).aggregate(
-        all_pgkb_genes=('gene_from_pgkb', set),
-        all_vep_genes=('overlapping_gene', set)
+        all_pgkb_genes=('gene_from_pgkb', lambda x: set(x.dropna())),
+        all_vep_genes=('overlapping_gene', lambda x: set(x.dropna()))
     )
     # Compare sets of genes
-    counts.pgkb_vep_gene_diff = len(genes_table[genes_table['all_pgkb_genes'] != genes_table['all_vep_genes']])
+    counts.annot_with_pgkb_genes = len(genes_table[genes_table['all_pgkb_genes'] != set()])
+    counts.annot_with_vep_genes = len(genes_table[genes_table['all_vep_genes'] != set()])
+    neq_genes_table = genes_table[genes_table['all_pgkb_genes'] != genes_table['all_vep_genes']]
+    counts.pgkb_vep_gene_diff = len(neq_genes_table)
     # Debug dump genes table
     if debug_path:
-        genes_table.to_csv(debug_path)
+        neq_genes_table.to_csv(debug_path)
