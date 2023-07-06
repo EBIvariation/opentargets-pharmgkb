@@ -1,9 +1,12 @@
 import os
 
+import numpy as np
 import pandas as pd
+import pytest
 
 from opentargets_pharmgkb import evidence_generation
-from opentargets_pharmgkb.evidence_generation import get_functional_consequences, explode_and_map_drugs, read_tsv_to_df
+from opentargets_pharmgkb.evidence_generation import get_functional_consequences, explode_and_map_drugs, \
+    read_tsv_to_df, explode_and_map_genes
 
 resources_dir = os.path.join(os.path.dirname(__file__), 'resources')
 
@@ -27,6 +30,15 @@ def test_explode_and_map_drugs():
     assert annotated_df.loc['peginterferon alfa-2a']['chebi'] is None
 
 
+def test_explode_and_map_genes():
+    df = pd.DataFrame(columns=['Gene'], data=[['IFNL3;IFNL4'], ['HLA-G'], [np.nan]])
+    annotated_df = explode_and_map_genes(df)
+    assert annotated_df.shape == (11, 3)
+    assert 'ENSG00000272395' in annotated_df['gene_from_pgkb'].values
+    assert 'ENSG00000235346' in annotated_df['gene_from_pgkb'].values
+    assert pd.isna(annotated_df['gene_from_pgkb']).any()
+
+
 def test_pipeline():
     output_path = os.path.join(resources_dir, 'test_output.json')
     expected_path = os.path.join(resources_dir, 'expected_output.json')
@@ -41,3 +53,13 @@ def test_pipeline():
 
     if os.path.exists(output_path):
         os.remove(output_path)
+
+
+def test_pipeline_missing_file():
+    output_path = os.path.join(resources_dir, 'test_output.json')
+    with pytest.raises(ValueError):
+        evidence_generation.pipeline(
+            data_dir=os.path.join(resources_dir, 'nonexistent'),
+            created_date='2023-03-23',
+            output_path=output_path
+        )

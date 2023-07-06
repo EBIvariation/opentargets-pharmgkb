@@ -1,4 +1,5 @@
 import json
+import logging
 import multiprocessing
 import os
 from itertools import zip_longest
@@ -12,15 +13,22 @@ from opentargets_pharmgkb.ontology_apis import get_chebi_iri, get_efo_iri
 from opentargets_pharmgkb.pandas_utils import none_to_nan, explode_column
 from opentargets_pharmgkb.variant_coordinates import get_coordinates_for_clinical_annotation
 
+logging.basicConfig()
+logger = logging.getLogger(__package__)
+logger.setLevel(level=logging.DEBUG)
+
 ID_COL_NAME = 'Clinical Annotation ID'
 
 
 def pipeline(data_dir, created_date, output_path):
-    # TODO test file existence
     clinical_annot_path = os.path.join(data_dir, 'clinical_annotations.tsv')
     clinical_alleles_path = os.path.join(data_dir, 'clinical_ann_alleles.tsv')
     clinical_evidence_path = os.path.join(data_dir, 'clinical_ann_evidence.tsv')
     drugs_path = os.path.join(data_dir, 'drugs.tsv')
+    for p in (clinical_annot_path, clinical_alleles_path, clinical_evidence_path, drugs_path):
+        if not os.path.exists(p):
+            logger.error(f'Missing required data file: {p}')
+            raise ValueError(f'Missing required data file: {p}')
 
     clinical_annot_table = read_tsv_to_df(clinical_annot_path)
     clinical_alleles_table = read_tsv_to_df(clinical_alleles_path)
@@ -142,9 +150,9 @@ def explode_and_map_genes(df):
     ensembl_ids = query_biomart(
         ('hgnc_symbol', 'split_gene'),
         ('ensembl_gene_id', 'gene_from_pgkb'),
-        split_genes['split_gene'].drop_duplicates().tolist()
+        split_genes['split_gene'].dropna().drop_duplicates().tolist()
     )
-    mapped_genes = pd.merge(split_genes, ensembl_ids, on='split_gene')
+    mapped_genes = pd.merge(split_genes, ensembl_ids, on='split_gene', how='left')
     # HGNC could map to more than one ensembl gene id, so must explode again
     mapped_genes = mapped_genes.explode('gene_from_pgkb').reset_index(drop=True)
     return mapped_genes
