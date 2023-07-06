@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 
 from opentargets_pharmgkb.pandas_utils import explode_column
@@ -7,7 +8,8 @@ def test_explode_column():
     df = pd.DataFrame([
         [1, 'apple; pear; banana'],
         [2, 'cat;frog'],
-        [3, 'something']
+        [3, 'something'],
+        [4, np.nan]
     ], columns=['A', 'B'])
 
     expected = pd.DataFrame([
@@ -16,7 +18,8 @@ def test_explode_column():
         [1, 'apple; pear; banana', 'banana'],
         [2, 'cat;frog', 'cat'],
         [2, 'cat;frog', 'frog'],
-        [3, 'something', 'something']
+        [3, 'something', 'something'],
+        [4, np.nan, np.nan]
     ], columns=['A', 'B', 'C'])
     result = explode_column(df, 'B', 'C')
 
