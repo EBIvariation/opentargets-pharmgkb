@@ -12,6 +12,7 @@ class ClinicalAnnotationCounts:
         self.with_consequence = 0
         # self.with_pgkb_gene = 0
         self.with_vep_gene = 0
+        # Evaluation counts - after annotation but without exploding
         self.annot_with_pgkb_genes = 0
         self.annot_with_vep_genes = 0
         self.pgkb_vep_gene_diff = 0
