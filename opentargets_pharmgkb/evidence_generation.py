@@ -45,6 +45,7 @@ def pipeline(data_dir, created_date, output_path):
 
     # Main processing
     merged_with_alleles_table = pd.merge(rs_only_table, clinical_alleles_table, on=ID_COL_NAME, how='left')
+    counts.allele_annotations = len(merged_with_alleles_table)
     coordinates_table = get_vcf_coordinates(merged_with_alleles_table)
     consequences_table = get_functional_consequences(coordinates_table)
     # mapped_genes = explode_and_map_genes(consequences_table)
