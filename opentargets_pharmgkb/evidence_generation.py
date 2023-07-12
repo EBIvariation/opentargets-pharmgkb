@@ -45,16 +45,20 @@ def pipeline(data_dir, created_date, output_path):
 
     # Main processing
     merged_with_alleles_table = pd.merge(rs_only_table, clinical_alleles_table, on=ID_COL_NAME, how='left')
-    counts.allele_annotations = len(merged_with_alleles_table)
-    coordinates_table = get_vcf_coordinates(merged_with_alleles_table)
-    consequences_table = get_functional_consequences(coordinates_table)
-    # mapped_genes = explode_and_map_genes(consequences_table)
-    mapped_drugs = explode_and_map_drugs(consequences_table, drugs_table)
+    counts.exploded_alleles = len(merged_with_alleles_table)
+
+    mapped_drugs = explode_and_map_drugs(merged_with_alleles_table, drugs_table)
+    counts.exploded_drugs = len(mapped_drugs)
+
     mapped_phenotypes = explode_and_map_phenotypes(mapped_drugs)
+    counts.exploded_phenotypes = len(mapped_phenotypes)
+
+    coordinates_table = get_vcf_coordinates(mapped_phenotypes)
+    consequences_table = get_functional_consequences(coordinates_table)
 
     # Add clinical evidence with PMIDs
     pmid_evidence = clinical_evidence_table[clinical_evidence_table['PMID'].notna()]
-    evidence_table = pd.merge(mapped_phenotypes, pmid_evidence.groupby(by=ID_COL_NAME).aggregate(
+    evidence_table = pd.merge(consequences_table, pmid_evidence.groupby(by=ID_COL_NAME).aggregate(
         publications=('PMID', list)), on=ID_COL_NAME)
 
     # Gather output counts
