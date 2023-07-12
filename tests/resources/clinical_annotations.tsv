@@ -8,3 +8,4 @@ Clinical Annotation ID	Variant/Haplotypes	Gene	Level of Evidence	Level Override	
 1448603303	rs3766246	FAAH	3			3.0	Toxicity	1	1	morphine		2021-03-24	https://www.pharmgkb.org/clinicalAnnotation/1448603303	Pediatric
 1444668808	rs1799752	ACE	3		Tier 1 VIP	0.75	Efficacy	2	2	irbesartan	Hypertension;Hypertrophy, Left Ventricular	2021-09-09	https://www.pharmgkb.org/clinicalAnnotation/1444668808	
 1451114960	rs45445694	TYMS	3		Tier 1 VIP	3.25	Efficacy	13	13	fluorouracil;FOLFIRI;FOLFOX	overall survival;progression-free survival	2021-03-24	https://www.pharmgkb.org/clinicalAnnotation/1451114960	
+1449566379	rs11065987		3			2.5	Efficacy	1	1	hydrochlorothiazide	Hypertension	2021-03-24	https://www.pharmgkb.org/clinicalAnnotation/1449566379

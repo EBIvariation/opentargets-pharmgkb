@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 
 def none_to_nan(x):
@@ -17,5 +18,5 @@ def explode_column(df, source_col, target_col, sep=';'):
     :return: dataframe with target_col added
     """
     split_cols = df.assign(**{target_col: df[source_col].str.split(sep)}).explode(target_col).reset_index(drop=True)
-    split_cols[target_col] = split_cols[target_col].map(lambda x: x.strip())
+    split_cols[target_col] = split_cols[target_col].map(lambda x: str(x).strip() if pd.notna(x) else np.nan)
     return split_cols

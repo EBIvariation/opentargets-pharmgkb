@@ -1,43 +1,82 @@
 import json
+import logging
 import multiprocessing
+import os
 from itertools import zip_longest
 
 import pandas as pd
 from cmat.consequence_prediction.common.biomart import query_biomart
 from cmat.consequence_prediction.snp_indel_variants.pipeline import process_variants
 
+from opentargets_pharmgkb.counts import ClinicalAnnotationCounts
 from opentargets_pharmgkb.ontology_apis import get_chebi_iri, get_efo_iri
 from opentargets_pharmgkb.pandas_utils import none_to_nan, explode_column
 from opentargets_pharmgkb.variant_coordinates import get_coordinates_for_clinical_annotation
 
+logging.basicConfig()
+logger = logging.getLogger(__package__)
+logger.setLevel(level=logging.DEBUG)
+
 ID_COL_NAME = 'Clinical Annotation ID'
 
 
-def pipeline(clinical_annot_path, clinical_alleles_path, clinical_evidence_path, drugs_path, created_date, output_path):
+def pipeline(data_dir, created_date, output_path):
+    clinical_annot_path = os.path.join(data_dir, 'clinical_annotations.tsv')
+    clinical_alleles_path = os.path.join(data_dir, 'clinical_ann_alleles.tsv')
+    clinical_evidence_path = os.path.join(data_dir, 'clinical_ann_evidence.tsv')
+    drugs_path = os.path.join(data_dir, 'drugs.tsv')
+    for p in (clinical_annot_path, clinical_alleles_path, clinical_evidence_path, drugs_path):
+        if not os.path.exists(p):
+            logger.error(f'Missing required data file: {p}')
+            raise ValueError(f'Missing required data file: {p}')
+
     clinical_annot_table = read_tsv_to_df(clinical_annot_path)
     clinical_alleles_table = read_tsv_to_df(clinical_alleles_path)
     clinical_evidence_table = read_tsv_to_df(clinical_evidence_path)
     drugs_table = read_tsv_to_df(drugs_path)
 
-    merged_table = pd.merge(clinical_annot_table, clinical_alleles_table, on=ID_COL_NAME, how='left')
     # Restrict to variants with rsIDs
-    rs_only_table = merged_table[merged_table['Variant/Haplotypes'].str.contains('rs')]
+    rs_only_table = clinical_annot_table[clinical_annot_table['Variant/Haplotypes'].str.contains('rs')]
 
-    coordinates_table = get_vcf_coordinates(rs_only_table)
-    consequences_table = get_functional_consequences(coordinates_table)
-    mapped_genes = explode_and_map_genes(consequences_table)
-    mapped_drugs = explode_and_map_drugs(mapped_genes, drugs_table)
+    # Gather input counts
+    counts = ClinicalAnnotationCounts()
+    counts.clinical_annotations = len(clinical_annot_table)
+    counts.with_rs = len(rs_only_table)
+
+    # Main processing
+    merged_with_alleles_table = pd.merge(rs_only_table, clinical_alleles_table, on=ID_COL_NAME, how='left')
+    counts.exploded_alleles = len(merged_with_alleles_table)
+
+    mapped_drugs = explode_and_map_drugs(merged_with_alleles_table, drugs_table)
+    counts.exploded_drugs = len(mapped_drugs)
+
     mapped_phenotypes = explode_and_map_phenotypes(mapped_drugs)
+    counts.exploded_phenotypes = len(mapped_phenotypes)
+
+    coordinates_table = get_vcf_coordinates(mapped_phenotypes)
+    consequences_table = get_functional_consequences(coordinates_table)
 
     # Add clinical evidence with PMIDs
     pmid_evidence = clinical_evidence_table[clinical_evidence_table['PMID'].notna()]
-    evidence_table = pd.merge(mapped_phenotypes, pmid_evidence.groupby(by=ID_COL_NAME).aggregate(
+    evidence_table = pd.merge(consequences_table, pmid_evidence.groupby(by=ID_COL_NAME).aggregate(
         publications=('PMID', list)), on=ID_COL_NAME)
+
+    # Gather output counts
+    counts.evidence_strings = len(evidence_table)
+    counts.with_chebi = evidence_table['chebi'].count()
+    counts.with_efo = evidence_table['efo'].count()
+    counts.with_consequence = evidence_table['consequence_term'].count()
+    # counts.with_pgkb_gene = evidence_table['gene_from_pgkb'].count()
+    counts.with_vep_gene = evidence_table['overlapping_gene'].count()
 
     # Generate evidence
     evidence = [generate_clinical_annotation_evidence(created_date, row) for _, row in evidence_table.iterrows()]
     with open(output_path, 'w+') as output:
         output.write('\n'.join(json.dumps(ev) for ev in evidence))
+
+    # Final count report
+    gene_comparison_counts(evidence_table, counts, debug_path=f'{output_path.rsplit(".", 1)[0]}_genes.csv')
+    counts.report()
 
 
 def read_tsv_to_df(path):
@@ -116,9 +155,9 @@ def explode_and_map_genes(df):
     ensembl_ids = query_biomart(
         ('hgnc_symbol', 'split_gene'),
         ('ensembl_gene_id', 'gene_from_pgkb'),
-        split_genes['split_gene'].drop_duplicates().tolist()
+        split_genes['split_gene'].dropna().drop_duplicates().tolist()
     )
-    mapped_genes = pd.merge(split_genes, ensembl_ids, on='split_gene')
+    mapped_genes = pd.merge(split_genes, ensembl_ids, on='split_gene', how='left')
     # HGNC could map to more than one ensembl gene id, so must explode again
     mapped_genes = mapped_genes.explode('gene_from_pgkb').reset_index(drop=True)
     return mapped_genes
@@ -153,7 +192,9 @@ def explode_and_map_drugs(df, drugs_table):
 
 
 def chebi_id_to_iri(id_):
-    return f'http://purl.obolibrary.org/obo/CHEBI_{id_}'
+    if pd.notna(id_):
+        return f'http://purl.obolibrary.org/obo/CHEBI_{id_}'
+    return None
 
 
 def explode_and_map_phenotypes(df):
@@ -193,16 +234,16 @@ def generate_clinical_annotation_evidence(created_date, row):
         # VARIANT ATTRIBUTES
         'variantId': row['vcf_coords'],
         'variantRsId': row['Variant/Haplotypes'],
-        'targetFromSourceId': row['gene_from_pgkb'],
+        # 'originalSourceGeneId': row['gene_from_pgkb'],
         'variantFunctionalConsequenceId': row['consequence_term'],
-        'variantOverlappingGeneId': row['overlapping_gene'],
+        'targetFromSourceId': row['overlapping_gene'],
 
         # GENOTYPE ATTRIBUTES
         'genotype': row['Genotype/Allele'],
         'genotypeAnnotationText': row['Annotation Text'],
 
         # PHENOTYPE ATTRIBUTES
-        'drugText': row['split_drug'],
+        'drugFromSource': row['split_drug'],
         'drugId': row['chebi'],
         'pgxCategory': row['Phenotype Category'],
         'phenotypeText': row['split_phenotype'],
@@ -212,3 +253,21 @@ def generate_clinical_annotation_evidence(created_date, row):
     evidence_string = {key: value for key, value in evidence_string.items()
                        if value and (isinstance(value, list) or pd.notna(value))}
     return evidence_string
+
+
+def gene_comparison_counts(df, counts, debug_path=None):
+    # Map PGKB genes
+    mapped_genes = explode_and_map_genes(df)
+    # Re-group by ID column
+    genes_table = mapped_genes.groupby(by=ID_COL_NAME).aggregate(
+        all_pgkb_genes=('gene_from_pgkb', lambda x: set(x.dropna())),
+        all_vep_genes=('overlapping_gene', lambda x: set(x.dropna()))
+    )
+    # Compare sets of genes
+    counts.annot_with_pgkb_genes = len(genes_table[genes_table['all_pgkb_genes'] != set()])
+    counts.annot_with_vep_genes = len(genes_table[genes_table['all_vep_genes'] != set()])
+    neq_genes_table = genes_table[genes_table['all_pgkb_genes'] != genes_table['all_vep_genes']]
+    counts.pgkb_vep_gene_diff = len(neq_genes_table)
+    # Debug dump genes table
+    if debug_path:
+        neq_genes_table.to_csv(debug_path)
