@@ -13,6 +13,7 @@ def test_get_coordinates_multiple_alts():
     # Use of different alt allele generates a different identifier
     assert get_coordinates_for_clinical_annotation('rs4659982', ['TT', 'TC', 'CC']) == '1_240566955_T_C'
     # Only two alleles in genotypes, but neither is reference which is always included
+    # TODO what do we want to do here? generate 2 identifiers? (also does this even happen?)
     assert get_coordinates_for_clinical_annotation('rs4659982', ['AA', 'CC']) == None
 
 

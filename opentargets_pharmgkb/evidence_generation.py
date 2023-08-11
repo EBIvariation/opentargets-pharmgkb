@@ -11,7 +11,7 @@ from cmat.consequence_prediction.snp_indel_variants.pipeline import process_vari
 from opentargets_pharmgkb.counts import ClinicalAnnotationCounts
 from opentargets_pharmgkb.ontology_apis import get_chebi_iri, get_efo_iri
 from opentargets_pharmgkb.pandas_utils import none_to_nan, explode_column
-from opentargets_pharmgkb.variant_coordinates import get_coordinates_for_clinical_annotation
+from opentargets_pharmgkb.variant_coordinates import Fasta
 
 logging.basicConfig()
 logger = logging.getLogger(__package__)
@@ -24,8 +24,9 @@ def pipeline(data_dir, created_date, output_path):
     clinical_annot_path = os.path.join(data_dir, 'clinical_annotations.tsv')
     clinical_alleles_path = os.path.join(data_dir, 'clinical_ann_alleles.tsv')
     clinical_evidence_path = os.path.join(data_dir, 'clinical_ann_evidence.tsv')
+    variants_path = os.path.join(data_dir, 'variants.tsv')
     drugs_path = os.path.join(data_dir, 'drugs.tsv')
-    for p in (clinical_annot_path, clinical_alleles_path, clinical_evidence_path, drugs_path):
+    for p in (clinical_annot_path, clinical_alleles_path, clinical_evidence_path, variants_path, drugs_path):
         if not os.path.exists(p):
             logger.error(f'Missing required data file: {p}')
             raise ValueError(f'Missing required data file: {p}')
@@ -33,6 +34,7 @@ def pipeline(data_dir, created_date, output_path):
     clinical_annot_table = read_tsv_to_df(clinical_annot_path)
     clinical_alleles_table = read_tsv_to_df(clinical_alleles_path)
     clinical_evidence_table = read_tsv_to_df(clinical_evidence_path)
+    variants_table = read_tsv_to_df(variants_path)
     drugs_table = read_tsv_to_df(drugs_path)
 
     # Restrict to variants with rsIDs
@@ -44,7 +46,9 @@ def pipeline(data_dir, created_date, output_path):
     counts.with_rs = len(rs_only_table)
 
     # Main processing
-    merged_with_alleles_table = pd.merge(rs_only_table, clinical_alleles_table, on=ID_COL_NAME, how='left')
+    merged_with_variants_table = pd.merge(rs_only_table, variants_table, left_on='Variant/Haplotypes',
+                                          right_on='Variant Name', how='left')
+    merged_with_alleles_table = pd.merge(merged_with_variants_table, clinical_alleles_table, on=ID_COL_NAME, how='left')
     counts.exploded_alleles = len(merged_with_alleles_table)
 
     mapped_drugs = explode_and_map_drugs(merged_with_alleles_table, drugs_table)
@@ -90,13 +94,16 @@ def get_vcf_coordinates(df):
     :param df: dataframe to annotate (needs 'Genotype/Allele' and 'Variant/Haplotypes' columns)
     :return: dataframe with 'vcf_coords' column added
     """
+    # TODO put this in the right place
+    path_to_fasta = '/home/april/projects/opentargets/pharmgkb/assembly/GCF_000001405.40_GRCh38.p14_genomic.fna'
+    fasta = Fasta(path_to_fasta)
     # First set a column with all genotypes for a given rs
     df_with_coords = pd.merge(df, df.groupby(by=ID_COL_NAME).aggregate(
         all_genotypes=('Genotype/Allele', list)), on=ID_COL_NAME)
     # Then get coordinates for each row
     for i, row in df_with_coords.iterrows():
-        df_with_coords.at[i, 'vcf_coords'] = get_coordinates_for_clinical_annotation(
-            row['Variant/Haplotypes'], row['all_genotypes'])
+        df_with_coords.at[i, 'vcf_coords'] = fasta.get_coordinates_for_clinical_annotation(
+            row['Variant/Haplotypes'], row['Location'], row['all_genotypes'])
     return df_with_coords
 
 
