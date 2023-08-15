@@ -1,25 +1,24 @@
-from opentargets_pharmgkb.variant_coordinates import get_coordinates_for_clinical_annotation
+from opentargets_pharmgkb.variant_coordinates import Fasta
 
 
-def test_get_coordinates_single_alt():
+def test_get_coordinates_single_alt(fasta: Fasta):
     # rs4343: G/A
-    # When there's only one alt we don't need the genotypes
-    assert get_coordinates_for_clinical_annotation('rs4343', []) == '17_63488670_G_A'
+    assert fasta.get_coordinates_for_clinical_annotation('rs4343', 'NC_000017.11:63488670', ['GG', 'GA', 'AA']) == '17_63488670_G_A'
 
 
-def test_get_coordinates_multiple_alts():
+def test_get_coordinates_multiple_alts(fasta: Fasta):
     # rs4659982: T/A/C
-    assert get_coordinates_for_clinical_annotation('rs4659982', ['TT', 'TA', 'AA']) == '1_240566955_T_A'
-    # Use of different alt allele generates a different identifier
-    assert get_coordinates_for_clinical_annotation('rs4659982', ['TT', 'TC', 'CC']) == '1_240566955_T_C'
-    # Only two alleles in genotypes, but neither is reference which is always included
-    # TODO what do we want to do here? generate 2 identifiers? (also does this even happen?)
-    assert get_coordinates_for_clinical_annotation('rs4659982', ['AA', 'CC']) == None
+    assert fasta.get_coordinates_for_clinical_annotation('rs4659982', 'NC_000001.11:240566955', ['TT', 'TA', 'AA']) == '1_240566955_T_A'
+    # Use of different alt allele in genotypes generates a different identifier
+    assert fasta.get_coordinates_for_clinical_annotation('rs4659982', 'NC_000001.11:240566955', ['TT', 'TC', 'CC']) == '1_240566955_T_C'
+    # More than two alleles present in genotypes - TODO update once we decide how to treat these
+    assert fasta.get_coordinates_for_clinical_annotation('rs4659982', 'NC_000001.11:240566955', ['TT', 'TA', 'TC', 'AC']) == '1_240566955_T_A'
 
 
-def test_get_coordinates_deletion():
+def test_get_coordinates_deletion(fasta: Fasta):
     # rs70991108: -/TCGCGCGTCCCGCCCAGGT/TGGCGCCTCCCGCCCAGGT/TGGCGCGTCCCGCCCAGGT
-    assert get_coordinates_for_clinical_annotation(
+    assert fasta.get_coordinates_for_clinical_annotation(
         'rs70991108',
+        'NC_000005.10:80654345',
         ['TGGCGCGTCCCGCCCAGGT/TGGCGCGTCCCGCCCAGGT', 'TGGCGCGTCCCGCCCAGGT/del', 'del/del']
-    ) == '5_80654345_-_TGGCGCGTCCCGCCCAGGT'
+    ) == '5_80654344_C_CTGGCGCGTCCCGCCCAGGT'

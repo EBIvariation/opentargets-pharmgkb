@@ -2,6 +2,7 @@ import logging
 from functools import lru_cache
 import re
 
+import pandas as pd
 import requests
 from Bio import SeqIO
 
@@ -43,23 +44,26 @@ class Fasta:
         :param all_genotypes: list of genotype strings, e.g. ['TT', 'TA', 'AA']
         :return: string of form chr_pos_ref_alt, or None if coordinates cannot be determined
         """
+        if pd.isna(location):
+            return None
         chrom, pos = location.strip().split(':')
         if not chrom or not pos:
-            # fall back on Ensembl (should be rare)
-            chrom, pos = get_chrom_pos_for_rs_from_ensembl(rsid)
-            if not chrom or not pos:
-                return None
-
-        # Ranges are inclusive of both start and end
-        if '_' in pos:
-            start, end = pos.split('_')
-            start = int(start)
-            end = int(end)
+            return None
+        if '_' not in pos:
+            pos = int(pos)
         else:
-            start = end = int(pos)
-        ref = self.get_ref_from_fasta(chrom, start, end)
+            return None
+        # TODO add range handling - what does this mean actually?
+        # Ranges are inclusive of both start and end
+        # if '_' in pos:
+        #     start, end = pos.split('_')
+        #     start = int(start)
+        #     end = int(end)
+        # else:
+        #     start = end = int(pos)
 
         alleles = set()
+        contains_del = False
         for genotype in all_genotypes:
             # X chrom variants
             if len(genotype) == 1:
@@ -73,18 +77,25 @@ class Fasta:
             # short indels
             m = re.match('([ACGT]+|del)/([ACGT]+|del)', genotype, re.IGNORECASE)
             if not m:
-                logger.info(f'Could not parse genotype: {genotype}')
+                logger.info(f'Could not parse genotype for {rsid}: {genotype}')
                 continue
-            alleles.add(self.add_context_base(chrom, start, m.group(1)))
-            alleles.add(self.add_context_base(chrom, start, m.group(2)))
-            # In this case need to subtract 1 from start as we've added a base to the beginning
-            start -= 1
+            if m.group(1) == 'del'.lower() or m.group(2).lower() == 'del':
+                contains_del = True
+            alleles.add(m.group(1))
+            alleles.add(m.group(2))
 
+        # Correct for deletion alleles
+        if contains_del:
+            pos -= 1
+            alleles = {self.add_context_base(chrom, pos, allele) for allele in alleles}
+
+        ref = self.get_ref_from_fasta(chrom, pos)
         # Remove ref if present among alleles
         alts = alleles - {ref}
-        for alt in alts:
+        chrom_num = self.get_chrom_num_from_refseq(chrom)
+        for alt in sorted(alts):
             # TODO multiple IDs for multiple alts?
-            return f'{chrom}_{start}_{ref}_{alt}'
+            return f'{chrom_num}_{pos}_{ref}_{alt}'
         return None
 
     @lru_cache
@@ -93,17 +104,26 @@ class Fasta:
         if not end:
             end = start
         try:
-            return self.record_dict[chrom][start-1:end].upper()
+            return str(self.record_dict[chrom][start-1:end].seq).upper()
         except (KeyError, IndexError):
             logger.warning(f'Could not get reference allele for {chrom}:{start}_{end}')
             return None
 
     @lru_cache
-    def add_context_base(self, chrom, start, allele):
+    def add_context_base(self, chrom, pos, allele):
         """Add left-hand context base to allele at a given location."""
-        context_base = self.get_ref_from_fasta(chrom, start-1)
+        context_base = self.get_ref_from_fasta(chrom, pos)
         if context_base:
             if allele.lower() == 'del':
                 return context_base
             return f'{context_base}{allele}'
+        return None
+
+    @lru_cache
+    def get_chrom_num_from_refseq(self, chrom_refseq):
+        # TODO use the assembly report? API call?
+        m = re.search(r'Homo sapiens chromosome (.*?), ', self.record_dict[chrom_refseq].description)
+        if m and m.group(1):
+            return m.group(1)
+        logger.warning(f'Could not get chromosome number for {chrom_refseq}')
         return None

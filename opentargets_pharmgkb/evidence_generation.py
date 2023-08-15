@@ -20,7 +20,7 @@ logger.setLevel(level=logging.DEBUG)
 ID_COL_NAME = 'Clinical Annotation ID'
 
 
-def pipeline(data_dir, created_date, output_path):
+def pipeline(data_dir, fasta_path, created_date, output_path):
     clinical_annot_path = os.path.join(data_dir, 'clinical_annotations.tsv')
     clinical_alleles_path = os.path.join(data_dir, 'clinical_ann_alleles.tsv')
     clinical_evidence_path = os.path.join(data_dir, 'clinical_ann_evidence.tsv')
@@ -57,7 +57,7 @@ def pipeline(data_dir, created_date, output_path):
     mapped_phenotypes = explode_and_map_phenotypes(mapped_drugs)
     counts.exploded_phenotypes = len(mapped_phenotypes)
 
-    coordinates_table = get_vcf_coordinates(mapped_phenotypes)
+    coordinates_table = get_vcf_coordinates(mapped_phenotypes, fasta_path)
     consequences_table = get_functional_consequences(coordinates_table)
 
     # Add clinical evidence with PMIDs
@@ -87,16 +87,14 @@ def read_tsv_to_df(path):
     return pd.read_csv(path, sep='\t', dtype=str)
 
 
-def get_vcf_coordinates(df):
+def get_vcf_coordinates(df, fasta_path):
     """
     Get VCF-style coordinates (chr_pos_ref_alt) for dataframe.
 
     :param df: dataframe to annotate (needs 'Genotype/Allele' and 'Variant/Haplotypes' columns)
     :return: dataframe with 'vcf_coords' column added
     """
-    # TODO put this in the right place
-    path_to_fasta = '/home/april/projects/opentargets/pharmgkb/assembly/GCF_000001405.40_GRCh38.p14_genomic.fna'
-    fasta = Fasta(path_to_fasta)
+    fasta = Fasta(fasta_path)
     # First set a column with all genotypes for a given rs
     df_with_coords = pd.merge(df, df.groupby(by=ID_COL_NAME).aggregate(
         all_genotypes=('Genotype/Allele', list)), on=ID_COL_NAME)

@@ -42,8 +42,10 @@ def test_explode_and_map_genes():
 def test_pipeline():
     output_path = os.path.join(resources_dir, 'test_output.json')
     expected_path = os.path.join(resources_dir, 'expected_output.json')
+    fasta_path = os.path.join(resources_dir, 'GCF_000001405.40_GRCh38.p14_genomic.fna')  # TODO download this?
     evidence_generation.pipeline(
         data_dir=resources_dir,
+        fasta_path=fasta_path,
         created_date='2023-03-23',
         output_path=output_path
     )
