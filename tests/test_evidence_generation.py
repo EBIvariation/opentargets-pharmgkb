@@ -7,6 +7,7 @@ import pytest
 from opentargets_pharmgkb import evidence_generation
 from opentargets_pharmgkb.evidence_generation import get_functional_consequences, explode_and_map_drugs, \
     read_tsv_to_df, explode_and_map_genes
+from tests.conftest import fasta_path
 
 resources_dir = os.path.join(os.path.dirname(__file__), 'resources')
 
@@ -42,12 +43,12 @@ def test_explode_and_map_genes():
 def test_pipeline():
     output_path = os.path.join(resources_dir, 'test_output.json')
     expected_path = os.path.join(resources_dir, 'expected_output.json')
-    fasta_path = os.path.join(resources_dir, 'GCF_000001405.40_GRCh38.p14_genomic.fna')  # TODO download this?
     evidence_generation.pipeline(
         data_dir=resources_dir,
         fasta_path=fasta_path,
         created_date='2023-03-23',
-        output_path=output_path
+        output_path=output_path,
+        debug_path=f'{output_path}.csv'
     )
 
     with open(output_path) as test_output, open(expected_path) as expected_output:
@@ -55,6 +56,8 @@ def test_pipeline():
 
     if os.path.exists(output_path):
         os.remove(output_path)
+    if os.path.exists(f'{output_path}.csv'):
+        os.remove(f'{output_path}.csv')
 
 
 def test_pipeline_missing_file():
@@ -62,6 +65,7 @@ def test_pipeline_missing_file():
     with pytest.raises(ValueError):
         evidence_generation.pipeline(
             data_dir=os.path.join(resources_dir, 'nonexistent'),
+            fasta_path=fasta_path,
             created_date='2023-03-23',
             output_path=output_path
         )

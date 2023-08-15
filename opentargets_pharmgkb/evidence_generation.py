@@ -20,7 +20,7 @@ logger.setLevel(level=logging.DEBUG)
 ID_COL_NAME = 'Clinical Annotation ID'
 
 
-def pipeline(data_dir, fasta_path, created_date, output_path):
+def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
     clinical_annot_path = os.path.join(data_dir, 'clinical_annotations.tsv')
     clinical_alleles_path = os.path.join(data_dir, 'clinical_ann_alleles.tsv')
     clinical_evidence_path = os.path.join(data_dir, 'clinical_ann_evidence.tsv')
@@ -79,7 +79,9 @@ def pipeline(data_dir, fasta_path, created_date, output_path):
         output.write('\n'.join(json.dumps(ev) for ev in evidence))
 
     # Final count report
-    gene_comparison_counts(evidence_table, counts, debug_path=f'{output_path.rsplit(".", 1)[0]}_genes.csv')
+    if not debug_path:
+        debug_path = f'{output_path.rsplit(".", 1)[0]}_genes.csv'
+    gene_comparison_counts(evidence_table, counts, debug_path=debug_path)
     counts.report()
 
 
