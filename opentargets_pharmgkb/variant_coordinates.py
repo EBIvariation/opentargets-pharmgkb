@@ -49,18 +49,14 @@ class Fasta:
         chrom, pos = location.strip().split(':')
         if not chrom or not pos:
             return None
-        if '_' not in pos:
-            pos = int(pos)
-        else:
-            return None
-        # TODO add range handling - what does this mean actually?
+
         # Ranges are inclusive of both start and end
-        # if '_' in pos:
-        #     start, end = pos.split('_')
-        #     start = int(start)
-        #     end = int(end)
-        # else:
-        #     start = end = int(pos)
+        if '_' in pos:
+            start, end = pos.split('_')
+            start = int(start)
+            end = int(end)
+        else:
+            start = end = int(pos)
 
         alleles = set()
         contains_del = False
@@ -86,16 +82,22 @@ class Fasta:
 
         # Correct for deletion alleles
         if contains_del:
-            pos -= 1
-            alleles = {self.add_context_base(chrom, pos, allele) for allele in alleles}
+            if end == start:
+                end -= 1  # keep end == start if they began that way
+            start -= 1
+            alleles = {self.add_context_base(chrom, start, allele) for allele in alleles}
 
-        ref = self.get_ref_from_fasta(chrom, pos)
-        # Remove ref if present among alleles
-        alts = alleles - {ref}
+        ref = self.get_ref_from_fasta(chrom, start, end)
+        # Remove ref if present among alleles; otherwise report & skip
+        if ref in alleles:
+            alts = alleles - {ref}
+        else:
+            logger.warning(f'Ref not in alleles: {rsid}\t{ref}\t{"/".join(alleles)}')
+            return None
         chrom_num = self.get_chrom_num_from_refseq(chrom)
         for alt in sorted(alts):
             # TODO multiple IDs for multiple alts?
-            return f'{chrom_num}_{pos}_{ref}_{alt}'
+            return f'{chrom_num}_{start}_{ref}_{alt}'
         return None
 
     @lru_cache
