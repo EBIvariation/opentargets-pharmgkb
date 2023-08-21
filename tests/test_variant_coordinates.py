@@ -39,8 +39,15 @@ def test_get_coordinates_deletion(fasta: Fasta):
     ) == '21_33341700_A_ATGGCGCGTCCCGCCCAGGT'
 
 
+def test_get_coordinates_hybrid_genotype_format(fasta: Fasta):
+    assert fasta.get_coordinates_for_clinical_annotation(
+        'rs35068180',
+        'NC_000021.9:45514917',
+        ['A/del', 'AA', 'del/del']
+    ) == '21_45514916_T_TA'
+
+
 def test_get_coordinates_range_location(fasta: Fasta):
-    # Range provided in location - TODO update once we decide what to do here
     assert fasta.get_coordinates_for_clinical_annotation(
         'rs1051266',
         'NC_000021.9:33341701_33341703',

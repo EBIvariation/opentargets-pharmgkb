@@ -87,6 +87,9 @@ class Fasta:
             start -= 1
             alleles = {self.add_context_base(chrom, start, allele) for allele in alleles}
 
+        if not alleles:
+            logger.warning(f'Could not parse genotypes: {rsid}\t{",".join(all_genotypes)}')
+            return None
         ref = self.get_ref_from_fasta(chrom, start, end)
         # Remove ref if present among alleles; otherwise report & skip
         if ref in alleles:
