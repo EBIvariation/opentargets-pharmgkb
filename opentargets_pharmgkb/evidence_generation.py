@@ -101,6 +101,8 @@ def get_vcf_coordinates(df, fasta_path):
     df_with_coords = pd.merge(df, df.groupby(by=ID_COL_NAME).aggregate(
         all_genotypes=('Genotype/Allele', list)), on=ID_COL_NAME)
     # Then get coordinates for each row
+    # TODO Currently this does one call per genotype per RS
+    #  Remove redundant calls once we figure out how to handle genotypes & multiple alts per RS
     for i, row in df_with_coords.iterrows():
         df_with_coords.at[i, 'vcf_coords'] = fasta.get_coordinates_for_clinical_annotation(
             row['Variant/Haplotypes'], row['Location'], row['all_genotypes'])

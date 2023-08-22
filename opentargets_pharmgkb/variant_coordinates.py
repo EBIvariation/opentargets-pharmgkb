@@ -95,7 +95,7 @@ class Fasta:
         if ref in alleles:
             alts = alleles - {ref}
         else:
-            logger.warning(f'Ref not in alleles: {rsid}\t{ref}\t{"/".join(alleles)}')
+            logger.warning(f'Ref not in alleles: {rsid}\t{ref}\t{",".join(alleles)}')
             return None
         chrom_num = self.get_chrom_num_from_refseq(chrom)
         for alt in sorted(alts):
