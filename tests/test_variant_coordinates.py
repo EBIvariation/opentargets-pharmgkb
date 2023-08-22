@@ -1,14 +1,4 @@
-import os
-
-import pytest
-
 from opentargets_pharmgkb.variant_coordinates import Fasta
-
-
-@pytest.fixture
-def fasta():
-    fasta_path = os.path.join(os.path.dirname(__file__), 'resources', 'chr21.fa')
-    return Fasta(fasta_path)
 
 
 def test_get_coordinates(fasta: Fasta):
@@ -51,5 +41,13 @@ def test_get_coordinates_range_location(fasta: Fasta):
     assert fasta.get_coordinates_for_clinical_annotation(
         'rs1051266',
         'NC_000021.9:33341701_33341703',
-        ['GAG/GAG', 'GAG/del', 'del/del']
+        ['GAC/GAC', 'GAC/del', 'del/del']
+    ) == '21_33341700_AGAC_A'
+
+
+def test_get_coordinates_not_match_reference(fasta: Fasta):
+    assert fasta.get_coordinates_for_clinical_annotation(
+        'rs1051266',
+        'NC_000021.9:33341701_33341703',
+        ['TTT/TTT', 'TTT/del', 'del/del']
     ) == None
