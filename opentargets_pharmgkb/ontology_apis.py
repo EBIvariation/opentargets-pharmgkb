@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 HOST = 'https://www.ebi.ac.uk'
-OLS_API_ROOT = f'{HOST}/ols/api'
+OLS_API_ROOT = f'{HOST}/ols4/api'
 
 # Defaults from CMAT for getting EFO mappings that don't require manual curation
 zooma_filters = {'ontologies': 'efo,ordo,hp,mondo',
@@ -26,7 +26,7 @@ oxo_distance = 1
 @lru_cache
 @retry(exceptions=(ConnectionError, RequestException), tries=4, delay=2, backoff=1.2, jitter=(1, 3))
 def get_chebi_iri(drug_name):
-    chebi_search_url = os.path.join(OLS_API_ROOT, f'search?ontology=chebi&q={drug_name}')
+    chebi_search_url = os.path.join(OLS_API_ROOT, f'search?ontology=chebi&q={drug_name}&queryFields=label&exact=true')
     response = requests.get(chebi_search_url)
     response.raise_for_status()
     data = response.json()

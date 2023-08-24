@@ -1,24 +1,53 @@
-from opentargets_pharmgkb.variant_coordinates import get_coordinates_for_clinical_annotation
+from opentargets_pharmgkb.variant_coordinates import Fasta
 
 
-def test_get_coordinates_single_alt():
-    # rs4343: G/A
-    # When there's only one alt we don't need the genotypes
-    assert get_coordinates_for_clinical_annotation('rs4343', []) == '17_63488670_G_A'
+def test_get_coordinates(fasta: Fasta):
+    assert fasta.get_coordinates_for_clinical_annotation(
+        'rs1051266',
+        'NC_000021.9:33341701',
+        ['GG', 'GT', 'TT']) == '21_33341701_G_T'
+    # Use of different alt allele in genotypes generates a different identifier
+    assert fasta.get_coordinates_for_clinical_annotation(
+        'rs1051266',
+        'NC_000021.9:33341701',
+        ['GG', 'GA', 'AA']) == '21_33341701_G_A'
 
 
-def test_get_coordinates_multiple_alts():
-    # rs4659982: T/A/C
-    assert get_coordinates_for_clinical_annotation('rs4659982', ['TT', 'TA', 'AA']) == '1_240566955_T_A'
-    # Use of different alt allele generates a different identifier
-    assert get_coordinates_for_clinical_annotation('rs4659982', ['TT', 'TC', 'CC']) == '1_240566955_T_C'
-    # Only two alleles in genotypes, but neither is reference which is always included
-    assert get_coordinates_for_clinical_annotation('rs4659982', ['AA', 'CC']) == None
+def test_get_coordinates_multiple_alts(fasta: Fasta):
+    # More than two alleles present in genotypes - TODO update once we decide how to treat these
+    assert fasta.get_coordinates_for_clinical_annotation(
+        'rs1051266',
+        'NC_000021.9:33341701',
+        ['GG', 'GT', 'GA', 'TA']) == '21_33341701_G_A'
 
 
-def test_get_coordinates_deletion():
-    # rs70991108: -/TCGCGCGTCCCGCCCAGGT/TGGCGCCTCCCGCCCAGGT/TGGCGCGTCCCGCCCAGGT
-    assert get_coordinates_for_clinical_annotation(
-        'rs70991108',
+def test_get_coordinates_deletion(fasta: Fasta):
+    assert fasta.get_coordinates_for_clinical_annotation(
+        'rs1051266',
+        'NC_000021.9:33341701',
         ['TGGCGCGTCCCGCCCAGGT/TGGCGCGTCCCGCCCAGGT', 'TGGCGCGTCCCGCCCAGGT/del', 'del/del']
-    ) == '5_80654345_-_TGGCGCGTCCCGCCCAGGT'
+    ) == '21_33341700_A_ATGGCGCGTCCCGCCCAGGT'
+
+
+def test_get_coordinates_hybrid_genotype_format(fasta: Fasta):
+    assert fasta.get_coordinates_for_clinical_annotation(
+        'rs35068180',
+        'NC_000021.9:45514917',
+        ['A/del', 'AA', 'del/del']
+    ) == '21_45514916_T_TA'
+
+
+def test_get_coordinates_range_location(fasta: Fasta):
+    assert fasta.get_coordinates_for_clinical_annotation(
+        'rs1051266',
+        'NC_000021.9:33341701_33341703',
+        ['GAC/GAC', 'GAC/del', 'del/del']
+    ) == '21_33341700_AGAC_A'
+
+
+def test_get_coordinates_not_match_reference(fasta: Fasta):
+    assert fasta.get_coordinates_for_clinical_annotation(
+        'rs1051266',
+        'NC_000021.9:33341701_33341703',
+        ['TTT/TTT', 'TTT/del', 'del/del']
+    ) == None
