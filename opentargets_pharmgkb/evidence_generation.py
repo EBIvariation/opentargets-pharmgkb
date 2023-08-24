@@ -7,6 +7,7 @@ from itertools import zip_longest
 import pandas as pd
 from cmat.consequence_prediction.common.biomart import query_biomart
 from cmat.consequence_prediction.snp_indel_variants.pipeline import process_variants
+from cmat.output_generation.consequence_type import get_so_accession_dict
 
 from opentargets_pharmgkb.counts import ClinicalAnnotationCounts
 from opentargets_pharmgkb.ontology_apis import get_chebi_iri, get_efo_iri
@@ -74,7 +75,11 @@ def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
     counts.with_vep_gene = evidence_table['overlapping_gene'].count()
 
     # Generate evidence
-    evidence = [generate_clinical_annotation_evidence(created_date, row) for _, row in evidence_table.iterrows()]
+    so_accession_dict = get_so_accession_dict()
+    evidence = [
+        generate_clinical_annotation_evidence(so_accession_dict, created_date, row)
+        for _, row in evidence_table.iterrows()
+    ]
     with open(output_path, 'w+') as output:
         output.write('\n'.join(json.dumps(ev) for ev in evidence))
 
@@ -227,7 +232,12 @@ def explode_and_map_phenotypes(df):
     return mapped_phenotypes
 
 
-def generate_clinical_annotation_evidence(created_date, row):
+def iri_to_code(iri):
+    """Convert iri (e.g. http://purl.obolibrary.org/obo/CHEBI_4792) to code, per Open Targets request."""
+    return iri.split('/')[-1] if iri and pd.notna(iri) else None
+
+
+def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
     """Generates an evidence string for a PharmGKB clinical annotation."""
     evidence_string = {
         # DATA SOURCE ATTRIBUTES
@@ -244,7 +254,7 @@ def generate_clinical_annotation_evidence(created_date, row):
         'variantId': row['vcf_coords'],
         'variantRsId': row['Variant/Haplotypes'],
         # 'originalSourceGeneId': row['gene_from_pgkb'],
-        'variantFunctionalConsequenceId': row['consequence_term'],
+        'variantFunctionalConsequenceId': so_accession_dict.get(row['consequence_term'], None),
         'targetFromSourceId': row['overlapping_gene'],
 
         # GENOTYPE ATTRIBUTES
@@ -253,10 +263,10 @@ def generate_clinical_annotation_evidence(created_date, row):
 
         # PHENOTYPE ATTRIBUTES
         'drugFromSource': row['split_drug'],
-        'drugId': row['chebi'],
+        'drugId': iri_to_code(row['chebi']),
         'pgxCategory': row['Phenotype Category'],
         'phenotypeText': row['split_phenotype'],
-        'phenotypeFromSourceId': row['efo']
+        'phenotypeFromSourceId': iri_to_code(row['efo'])
     }
     # Remove the attributes with empty values (either None or empty lists).
     evidence_string = {key: value for key, value in evidence_string.items()
