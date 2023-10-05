@@ -12,7 +12,7 @@ from cmat.output_generation.consequence_type import get_so_accession_dict
 from opentargets_pharmgkb.counts import ClinicalAnnotationCounts
 from opentargets_pharmgkb.ontology_apis import get_chebi_iri, get_efo_iri
 from opentargets_pharmgkb.pandas_utils import none_to_nan, explode_column
-from opentargets_pharmgkb.variant_coordinates import Fasta
+from opentargets_pharmgkb.variant_coordinates import Fasta, parse_genotype
 
 logging.basicConfig()
 logger = logging.getLogger(__package__)
@@ -58,7 +58,8 @@ def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
     mapped_phenotypes = explode_and_map_phenotypes(mapped_drugs)
     counts.exploded_phenotypes = len(mapped_phenotypes)
 
-    coordinates_table = get_vcf_coordinates(mapped_phenotypes, fasta_path)
+    # Coordinates and consequences
+    coordinates_table = get_genotype_ids(mapped_phenotypes, fasta_path)
     consequences_table = get_functional_consequences(coordinates_table)
 
     # Add clinical evidence with PMIDs
@@ -94,58 +95,71 @@ def read_tsv_to_df(path):
     return pd.read_csv(path, sep='\t', dtype=str)
 
 
-def get_vcf_coordinates(df, fasta_path):
-    """
-    Get VCF-style coordinates (chr_pos_ref_alt) for dataframe.
+def genotype_id(chr, pos, ref, parsed_genotype):
+    return f'{chr}_{pos}_{ref}_{",".join(parsed_genotype)}' if chr and pos and ref else None
 
-    :param df: dataframe to annotate (needs 'Genotype/Allele' and 'Variant/Haplotypes' columns)
-    :return: dataframe with 'vcf_coords' column added
+
+def get_genotype_ids(df, fasta_path):
+    """
+
+    :param df: dataframe to annotate (needs 'Genotype/Allele', 'Variant/Haplotypes', 'Location' columns)
+    :return: dataframe with 'genotype_id' column added
     """
     fasta = Fasta(fasta_path)
     # First set a column with all genotypes for a given rs
-    df_with_coords = pd.merge(df, df.groupby(by=ID_COL_NAME).aggregate(
-        all_genotypes=('Genotype/Allele', list)), on=ID_COL_NAME)
+    df_with_ids = df.assign(parsed_genotype=df['Genotype/Allele'].apply(parse_genotype))
+    df_with_ids = pd.merge(df_with_ids, df_with_ids.groupby(by=ID_COL_NAME).aggregate(
+        all_genotypes=('parsed_genotype', list)), on=ID_COL_NAME)
     # Then get coordinates for each row
     # TODO Currently this does one call per genotype per RS
     #  Remove redundant calls once we figure out how to handle genotypes & multiple alts per RS
-    for i, row in df_with_coords.iterrows():
-        df_with_coords.at[i, 'vcf_coords'] = fasta.get_coordinates_for_clinical_annotation(
-            row['Variant/Haplotypes'], row['Location'], row['all_genotypes'])
-    return df_with_coords
+    for i, row in df_with_ids.iterrows():
+        chr, pos, ref = fasta.get_chr_pos_ref(row['Variant/Haplotypes'], row['Location'], row['all_genotypes'])
+        df_with_ids.at[i, 'genotype_id'] = genotype_id(chr, pos, ref, row['parsed_genotype'])
+    return df_with_ids
 
 
 def get_functional_consequences(df):
     """
     Get functional consequences from VEP.
 
-    :param df: dataframe to annotate (needs 'vcf_coords' column)
+    :param df: dataframe to annotate (needs 'genotype_id' column)
     :return: dataframe with 'overlapping_gene' and 'consequence_term' columns added
     """
-    vep_id_to_coords = {
-        coord_id_to_vep_id(x): x for x in df['vcf_coords'].dropna().drop_duplicates().tolist()
+    vep_id_to_genotype_id = {
+        vep_id: x
+        for x in df['genotype_id'].dropna().drop_duplicates().tolist()
+        for vep_id in genotype_id_to_vep_ids(x)
     }
+    # Note that variants in a single genotype will have VEP logic applied independently, i.e. most severe consequence
+    # for each overlapping gene.
     with multiprocessing.Pool(processes=24) as pool:
         all_consequences = [
             pool.apply(process_to_list, args=(batch,))
-            for batch in grouper(vep_id_to_coords.keys(), 200)
+            for batch in grouper(vep_id_to_genotype_id.keys(), 200)
         ]
     mapped_consequences = pd.DataFrame(data=[
         {
-            'vcf_coords': vep_id_to_coords[variant_id],
+            'genotype_id': vep_id_to_genotype_id[variant_id],
             'overlapping_gene': gene_id,
             'consequence_term': consequence_term
         }
         for batch in all_consequences
         for variant_id, gene_id, gene_symbol, consequence_term in batch
     ])
-    return pd.merge(df, mapped_consequences, on='vcf_coords', how='left')
+    return pd.merge(df, mapped_consequences, on='genotype_id', how='left')
 
 
-def coord_id_to_vep_id(coord_id):
-    """Converts an underscore-separated coordinate identifier (e.g. 15_7237571_C_T) to VEP compatible one."""
+def genotype_id_to_vep_ids(coord_id):
+    """Converts an underscore-separated genotype identifier (e.g. 15_7237571_C_T,C) to VEP compatible ones."""
     id_fields = coord_id.split('_')
     assert len(id_fields) == 4, 'Invalid identifier supplied (should contain exactly 4 fields)'
-    return '{} {} . {} {}'.format(*id_fields)
+    chr, pos, ref, genotype = id_fields
+    genotype = genotype.split(',')
+    for alt in genotype:
+        # Skip non-variants
+        if alt != ref:
+            yield f'{chr} {pos} . {ref} {alt}'
 
 
 def grouper(iterable, n):
@@ -251,7 +265,7 @@ def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
         'literature': [str(x) for x in row['publications']],
 
         # VARIANT ATTRIBUTES
-        'variantId': row['vcf_coords'],
+        'genotypeId': row['genotype_id'],
         'variantRsId': row['Variant/Haplotypes'],
         # 'originalSourceGeneId': row['gene_from_pgkb'],
         'variantFunctionalConsequenceId': so_accession_dict.get(row['consequence_term'], None),
