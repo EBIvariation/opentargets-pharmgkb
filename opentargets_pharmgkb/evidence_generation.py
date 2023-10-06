@@ -2,6 +2,7 @@ import json
 import logging
 import multiprocessing
 import os
+from collections import defaultdict
 from itertools import zip_longest
 
 import pandas as pd
@@ -114,8 +115,11 @@ def get_genotype_ids(df, fasta_path):
     # TODO Currently this does one call per genotype per RS
     #  Remove redundant calls once we figure out how to handle genotypes & multiple alts per RS
     for i, row in df_with_ids.iterrows():
-        chr, pos, ref = fasta.get_chr_pos_ref(row['Variant/Haplotypes'], row['Location'], row['all_genotypes'])
-        df_with_ids.at[i, 'genotype_id'] = genotype_id(chr, pos, ref, row['parsed_genotype'])
+        chr, pos, ref, alleles_dict = fasta.get_chr_pos_ref(row['Variant/Haplotypes'], row['Location'], row['all_genotypes'])
+        if chr and pos and ref and alleles_dict:
+            df_with_ids.at[i, 'genotype_id'] = genotype_id(chr, pos, ref, sorted([alleles_dict[a] for a in row['parsed_genotype']]))
+        else:
+            df_with_ids.at[i, 'genotype_id'] = None
     return df_with_ids
 
 
@@ -126,26 +130,26 @@ def get_functional_consequences(df):
     :param df: dataframe to annotate (needs 'genotype_id' column)
     :return: dataframe with 'overlapping_gene' and 'consequence_term' columns added
     """
-    vep_id_to_genotype_id = {
-        vep_id: x
-        for x in df['genotype_id'].dropna().drop_duplicates().tolist()
-        for vep_id in genotype_id_to_vep_ids(x)
-    }
+    vep_id_to_genotype_ids = defaultdict(list)
+    for genotype_id in df['genotype_id'].dropna().drop_duplicates().tolist():
+        for vep_id in genotype_id_to_vep_ids(genotype_id):
+            vep_id_to_genotype_ids[vep_id].append(genotype_id)
     # Note that variants in a single genotype will have VEP logic applied independently, i.e. most severe consequence
     # for each overlapping gene.
     with multiprocessing.Pool(processes=24) as pool:
         all_consequences = [
             pool.apply(process_to_list, args=(batch,))
-            for batch in grouper(vep_id_to_genotype_id.keys(), 200)
+            for batch in grouper(vep_id_to_genotype_ids.keys(), 200)
         ]
     mapped_consequences = pd.DataFrame(data=[
         {
-            'genotype_id': vep_id_to_genotype_id[variant_id],
+            'genotype_id': genotype_id,
             'overlapping_gene': gene_id,
             'consequence_term': consequence_term
         }
         for batch in all_consequences
         for variant_id, gene_id, gene_symbol, consequence_term in batch
+        for genotype_id in vep_id_to_genotype_ids[variant_id]
     ])
     return pd.merge(df, mapped_consequences, on='genotype_id', how='left')
 

@@ -53,8 +53,8 @@ def parse_genotype(genotype_string):
 
     if not alleles:
         logger.info(f'Could not parse genotype {genotype_string}')
-    # Sort and uppercase before returning
-    return sorted([a.upper() for a in alleles])
+    # Normalise to uppercase before returning
+    return [a.upper() for a in alleles]
 
 
 class Fasta:
@@ -70,13 +70,15 @@ class Fasta:
         :param location: string consisting of RefSeq accession and position separated by a colon,
                          e.g. 'NC_000001.11:46399999'
         :param all_parsed_genotypes: list of genotypes parsed into alleles, e.g. [['T', 'T'], ['T','A'], ['A','A']]
-        :return: tuple of (chr, pos, ref), or Nones if coordinates cannot be determined
+        :return: tuple of (chr, pos, ref, alleles), or Nones if coordinates cannot be determined.
+                 alleles is a dict mapping allele string as present in all_parsed_genotypes, to an allele string with
+                 context possibly added - e.g. {'AAG': 'CAAG', 'DEL': 'C'}
         """
         if pd.isna(location):
-            return None, None, None
+            return None, None, None, None
         chrom, pos = location.strip().split(':')
         if not chrom or not pos:
-            return None, None, None
+            return None, None, None, None
         chrom_num = self.get_chrom_num_from_refseq(chrom)
 
         # Ranges are inclusive of both start and end
@@ -87,27 +89,27 @@ class Fasta:
         else:
             start = end = int(pos)
 
-        all_alleles = {alt for genotype in all_parsed_genotypes for alt in genotype}
-        # Correct for deletion alleles - TODO this is broken!! :(
-        if 'DEL' in all_alleles:
+        alleles_dict = {alt: alt for genotype in all_parsed_genotypes for alt in genotype}
+        # Correct for deletion alleles
+        if 'DEL' in alleles_dict:
             if end == start:
                 end -= 1  # keep end == start if they began that way
             start -= 1
-            all_alleles = {self.add_context_base(chrom, start, allele) for allele in all_alleles}
+            alleles_dict = {allele: self.add_context_base(chrom, start, allele) for allele in alleles_dict}
 
-        if not all_alleles:
+        if not alleles_dict:
             logger.warning(f'Could not parse any genotypes for {rsid}')
-            return chrom_num, start, None
+            return chrom_num, start, None, None
 
         ref = self.get_ref_from_fasta(chrom, start, end)
         # Report & skip if ref is not among the alleles
         # TODO we can now support cases where ref is truly not among the annotated genotypes, but we can't distinguish
         #  this situation from cases where the reference or location is wrong for some reason.
-        if ref not in all_alleles:
-            logger.warning(f'Ref not in alleles: {rsid}\t{ref}\t{",".join(all_alleles)}')
-            return chrom_num, start, None
+        if ref not in alleles_dict.values():
+            logger.warning(f'Ref not in alleles: {rsid}\t{ref}\t{",".join(alleles_dict)}')
+            return chrom_num, start, None, None
 
-        return chrom_num, start, ref
+        return chrom_num, start, ref, alleles_dict
 
     @lru_cache
     def get_ref_from_fasta(self, chrom, start, end=None):
