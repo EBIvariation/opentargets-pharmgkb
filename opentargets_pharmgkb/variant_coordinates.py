@@ -31,9 +31,10 @@ def get_chrom_pos_for_rs_from_ensembl(rsid):
 
 def parse_genotype(genotype_string):
     """
+    Parse PGKB string representations of genotypes into alleles.
 
-    :param genotype_string:
-    :return:
+    :param genotype_string: e.g. 'A', 'TA', 'A/del', 'CAG/CAGCAG'
+    :return: list of alleles in the genotype, e.g. ['A'], ['T','A'], ['A','DEL'], ['CAG','CAGCAG']
     """
     alleles = []
     # X chrom variants

@@ -31,7 +31,7 @@ datatypeId | Type of data corresponding to this evidence string (currently only 
 studyId | Clinical Annotation ID | `"1449309937"`
 evidenceLevel |  Level of evidence (see [here](https://www.pharmgkb.org/page/clinAnnLevels)) | `"1A"`
 literature | List of PMIDs associated with this clinical annotation | `["11389482", "27857962"]`
-genotypeId | VCF-style (`chr_pos_ref_allele1,allele2`) identifier of variant; computed as described [below](#variant-coordinate-computation) | `"19_38499645_GGAG_G,GGAG"`
+genotypeId | VCF-style (`chr_pos_ref_allele1,allele2`) identifier of genotype; computed as described [below](#variant-coordinate-computation) | `"19_38499645_GGAG_G,GGAG"`
 variantRsId | RS ID of variant | `"rs121918596"`
 variantFunctionalConsequenceId | Sequence Ontology term, from VEP | `"SO_0001822"`
 targetFromSourceId | Ensembl stable gene ID, from VEP | `"ENSG00000196218"`
@@ -56,7 +56,7 @@ Below is an example of a complete clinical annotation evidence string:
     "11389482",
     "27857962"
   ],
-  "variantId": "19_38499645_GGAG_G",
+  "genotypeId": "19_38499645_GGAG_G,GGAG",
   "variantRsId": "rs121918596",
   "variantFunctionalConsequenceId": "SO_0001822",
   "targetFromSourceId": "ENSG00000196218",
@@ -75,7 +75,7 @@ Other examples can be found in the [tests](tests/resources/expected_output.json)
 
 TODO: describe this in words
 
-````mermaid
+```mermaid
 graph TD
     J[PharmGKB]
     H[FASTA files]
@@ -89,4 +89,4 @@ graph TD
     A --> |locations 'Chr+Pos'| D
     H --> |Reference + context| D
     E --> |Alternate alleles| D
-````
+```

@@ -96,28 +96,33 @@ def read_tsv_to_df(path):
     return pd.read_csv(path, sep='\t', dtype=str)
 
 
-def genotype_id(chr, pos, ref, parsed_genotype):
-    return f'{chr}_{pos}_{ref}_{",".join(parsed_genotype)}' if chr and pos and ref else None
+def genotype_id(chrom, pos, ref, parsed_genotype):
+    return f'{chrom}_{pos}_{ref}_{",".join(parsed_genotype)}' if chrom and pos and ref else None
 
 
 def get_genotype_ids(df, fasta_path):
     """
+    Get genotype IDs (chr_pos_ref_allele1,allele2) for dataframe.
 
     :param df: dataframe to annotate (needs 'Genotype/Allele', 'Variant/Haplotypes', 'Location' columns)
     :return: dataframe with 'genotype_id' column added
     """
     fasta = Fasta(fasta_path)
-    # First set a column with all genotypes for a given rs
+    # First set a column with all genotypes for a given RS
     df_with_ids = df.assign(parsed_genotype=df['Genotype/Allele'].apply(parse_genotype))
     df_with_ids = pd.merge(df_with_ids, df_with_ids.groupby(by='Variant/Haplotypes').aggregate(
         all_genotypes=('parsed_genotype', list)), on='Variant/Haplotypes')
-    # Then get coordinates for each row
-    # TODO Currently this does one call per genotype per RS
-    #  Remove redundant calls once we figure out how to handle genotypes & multiple alts per RS
+    # Get coordinates for each RS
+    rs_to_coords = {}
+    for i, row in df_with_ids.drop_duplicates(['Variant/Haplotypes']).iterrows():
+        rs_to_coords[row['Variant/Haplotypes']] = fasta.get_chr_pos_ref(row['Variant/Haplotypes'], row['Location'],
+                                                            row['all_genotypes'])
+    # Get ID for each genotype
     for i, row in df_with_ids.iterrows():
-        chr, pos, ref, alleles_dict = fasta.get_chr_pos_ref(row['Variant/Haplotypes'], row['Location'], row['all_genotypes'])
-        if chr and pos and ref and alleles_dict:
-            df_with_ids.at[i, 'genotype_id'] = genotype_id(chr, pos, ref, sorted([alleles_dict[a] for a in row['parsed_genotype']]))
+        chrom, pos, ref, alleles_dict = rs_to_coords[row['Variant/Haplotypes']]
+        if chrom and pos and ref and alleles_dict:
+            df_with_ids.at[i, 'genotype_id'] = genotype_id(chrom, pos, ref, sorted([alleles_dict[a]
+                                                                                  for a in row['parsed_genotype']]))
         else:
             df_with_ids.at[i, 'genotype_id'] = None
     return df_with_ids
@@ -158,12 +163,12 @@ def genotype_id_to_vep_ids(coord_id):
     """Converts an underscore-separated genotype identifier (e.g. 15_7237571_C_T,C) to VEP compatible ones."""
     id_fields = coord_id.split('_')
     assert len(id_fields) == 4, 'Invalid identifier supplied (should contain exactly 4 fields)'
-    chr, pos, ref, genotype = id_fields
+    chrom, pos, ref, genotype = id_fields
     genotype = genotype.split(',')
     for alt in genotype:
         # Skip non-variants
         if alt != ref:
-            yield f'{chr} {pos} . {ref} {alt}'
+            yield f'{chrom} {pos} . {ref} {alt}'
 
 
 def grouper(iterable, n):
