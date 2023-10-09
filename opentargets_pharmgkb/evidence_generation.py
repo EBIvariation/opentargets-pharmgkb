@@ -60,7 +60,7 @@ def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
     counts.exploded_phenotypes = len(mapped_phenotypes)
 
     # Coordinates and consequences
-    coordinates_table = get_genotype_ids(mapped_phenotypes, fasta_path)
+    coordinates_table = get_genotype_ids(mapped_phenotypes, fasta_path, counts)
     consequences_table = get_functional_consequences(coordinates_table)
 
     # Add clinical evidence with PMIDs
@@ -100,11 +100,13 @@ def genotype_id(chrom, pos, ref, parsed_genotype):
     return f'{chrom}_{pos}_{ref}_{",".join(parsed_genotype)}' if chrom and pos and ref else None
 
 
-def get_genotype_ids(df, fasta_path):
+def get_genotype_ids(df, fasta_path, counts=None):
     """
     Get genotype IDs (chr_pos_ref_allele1,allele2) for dataframe.
 
     :param df: dataframe to annotate (needs 'Genotype/Allele', 'Variant/Haplotypes', 'Location' columns)
+    :param fasta_path: path to fasta file to check reference
+    :param counts: ClinicalAnnotationCounts; if provided will count multi-allelic variants.
     :return: dataframe with 'genotype_id' column added
     """
     fasta = Fasta(fasta_path)
@@ -115,8 +117,15 @@ def get_genotype_ids(df, fasta_path):
     # Get coordinates for each RS
     rs_to_coords = {}
     for i, row in df_with_ids.drop_duplicates(['Variant/Haplotypes']).iterrows():
-        rs_to_coords[row['Variant/Haplotypes']] = fasta.get_chr_pos_ref(row['Variant/Haplotypes'], row['Location'],
-                                                            row['all_genotypes'])
+        chrom, pos, ref, alleles_dict = fasta.get_chr_pos_ref(row['Variant/Haplotypes'], row['Location'],
+                                                              row['all_genotypes'])
+        rs_to_coords[row['Variant/Haplotypes']] = (chrom, pos, ref, alleles_dict)
+        if counts:
+            counts.total_rs += 1
+            if alleles_dict:
+                counts.rs_with_alleles += 1
+                if len(alleles_dict) > 2:
+                    counts.rs_with_multiple_alleles += 1
     # Get ID for each genotype
     for i, row in df_with_ids.iterrows():
         chrom, pos, ref, alleles_dict = rs_to_coords[row['Variant/Haplotypes']]
