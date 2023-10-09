@@ -109,8 +109,8 @@ def get_genotype_ids(df, fasta_path):
     fasta = Fasta(fasta_path)
     # First set a column with all genotypes for a given rs
     df_with_ids = df.assign(parsed_genotype=df['Genotype/Allele'].apply(parse_genotype))
-    df_with_ids = pd.merge(df_with_ids, df_with_ids.groupby(by=ID_COL_NAME).aggregate(
-        all_genotypes=('parsed_genotype', list)), on=ID_COL_NAME)
+    df_with_ids = pd.merge(df_with_ids, df_with_ids.groupby(by='Variant/Haplotypes').aggregate(
+        all_genotypes=('parsed_genotype', list)), on='Variant/Haplotypes')
     # Then get coordinates for each row
     # TODO Currently this does one call per genotype per RS
     #  Remove redundant calls once we figure out how to handle genotypes & multiple alts per RS
@@ -150,7 +150,7 @@ def get_functional_consequences(df):
         for batch in all_consequences
         for variant_id, gene_id, gene_symbol, consequence_term in batch
         for genotype_id in vep_id_to_genotype_ids[variant_id]
-    ])
+    ]).drop_duplicates()
     return pd.merge(df, mapped_consequences, on='genotype_id', how='left')
 
 
