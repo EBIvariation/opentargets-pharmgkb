@@ -39,7 +39,7 @@ genotype | Genotype string | SNP `"TA"`, indel `"del/GAG"`, repeat `"(CA)16/(CA)
 genotypeAnnotationText | Full annotation string for genotype | `"Patients with the rs121918596 del/GAG genotype may develop malignant hyperthermia when treated with volatile anesthetics [...]"`
 drugFromSource | Drug name | `"succinylcholine"`
 drugId | CHEBI ID of drug, mapped through OLS | `"CHEBI_45652"`
-pgxCategory | Pharmacogenomics phenotype category | `"Toxicity"`
+pgxCategory | Pharmacogenomics phenotype category | `"toxicity"`
 phenotypeText | Phenotype name | `"Malignant Hyperthermia"`
 phenotypeFromSourceId | EFO ID of phenotype, mapped through ZOOMA / OXO | `"Orphanet_423"`
 
@@ -64,7 +64,7 @@ Below is an example of a complete clinical annotation evidence string:
   "genotypeAnnotationText": "Patients with the rs121918596 del/GAG genotype may develop malignant hyperthermia when treated with volatile anesthetics (desflurane, enflurane, halothane, isoflurane, methoxyflurane, sevoflurane) and/or succinylcholine as compared to patients with the GAG/GAG genotype. Other genetic or clinical factors may also influence the risk for malignant hyperthermia.",
   "drugFromSource": "succinylcholine",
   "drugId": "CHEBI_45652",
-  "pgxCategory": "Toxicity",
+  "pgxCategory": "toxicity",
   "phenotypeText": "Malignant Hyperthermia",
   "phenotypeFromSourceId": "Orphanet_423"
 }

@@ -2,6 +2,7 @@ import json
 import logging
 import multiprocessing
 import os
+import sys
 from collections import defaultdict
 from itertools import zip_longest
 
@@ -13,6 +14,7 @@ from cmat.output_generation.consequence_type import get_so_accession_dict
 from opentargets_pharmgkb.counts import ClinicalAnnotationCounts
 from opentargets_pharmgkb.ontology_apis import get_chebi_iri, get_efo_iri
 from opentargets_pharmgkb.pandas_utils import none_to_nan, explode_column
+from opentargets_pharmgkb.validation import validate_evidence_string
 from opentargets_pharmgkb.variant_coordinates import Fasta, parse_genotype
 
 logging.basicConfig()
@@ -82,14 +84,26 @@ def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
         generate_clinical_annotation_evidence(so_accession_dict, created_date, row)
         for _, row in evidence_table.iterrows()
     ]
+    # Validate and write
+    invalid_evidence = False
     with open(output_path, 'w+') as output:
-        output.write('\n'.join(json.dumps(ev) for ev in evidence))
+        for ev_string in evidence:
+            if validate_evidence_string(ev_string):
+                output.write(json.dumps(ev_string)+'\n')
+            else:
+                invalid_evidence = True
 
     # Final count report
     if not debug_path:
         debug_path = f'{output_path.rsplit(".", 1)[0]}_genes.csv'
     gene_comparison_counts(evidence_table, counts, debug_path=debug_path)
     counts.report()
+
+    # Exit with an error code if any invalid evidence is produced
+    # Do this at the very end so we still output counts and any valid evidence strings.
+    if invalid_evidence:
+        logger.error('Invalid evidence strings occurred, please check the logs for the details')
+        sys.exit(1)
 
 
 def read_tsv_to_df(path):
@@ -296,7 +310,7 @@ def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
         # PHENOTYPE ATTRIBUTES
         'drugFromSource': row['split_drug'],
         'drugId': iri_to_code(row['chebi']),
-        'pgxCategory': row['Phenotype Category'],
+        'pgxCategory': row['Phenotype Category'].lower(),
         'phenotypeText': row['split_phenotype'],
         'phenotypeFromSourceId': iri_to_code(row['efo'])
     }
