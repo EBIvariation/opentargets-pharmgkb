@@ -31,7 +31,7 @@ class ClinicalAnnotationCounts:
         # Variant counts
         self.total_rs = 0
         self.rs_with_alleles = 0
-        self.rs_with_multiple_alleles = 0
+        self.rs_with_more_than_2_alleles = 0
 
     def report(self):
         report_str = f'\nTotal clinical annotations: {self.clinical_annotations}\n'
@@ -61,7 +61,7 @@ class ClinicalAnnotationCounts:
         report_str += f'Total RS: {self.total_rs}\n'
         report_str += (f'\tWith parsed alleles: {self.rs_with_alleles} '
                        f'({format_percent(self.rs_with_alleles, self.total_rs)})\n')
-        report_str += (f'\t\tWith >2 alleles: {self.rs_with_multiple_alleles} '
-                       f'({format_percent(self.rs_with_multiple_alleles, self.rs_with_alleles)})\n')
+        report_str += (f'\t\tWith >2 alleles: {self.rs_with_more_than_2_alleles} '
+                       f'({format_percent(self.rs_with_more_than_2_alleles, self.rs_with_alleles)})\n')
         print(report_str)
         return report_str

@@ -142,7 +142,7 @@ def get_genotype_ids(df, fasta_path, counts=None):
         counts.rs_with_alleles += 1
         if len(alleles_dict) <= 2:
             continue
-        counts.rs_with_multiple_alleles += 1
+        counts.rs_with_more_than_2_alleles += 1
     # Get ID for each genotype
     for i, row in df_with_ids.iterrows():
         chrom, pos, ref, alleles_dict = rs_to_coords[row['Variant/Haplotypes']]
