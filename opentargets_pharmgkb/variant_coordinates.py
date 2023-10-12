@@ -53,7 +53,7 @@ def parse_genotype(genotype_string):
         alleles.append(m.group(2))
 
     if not alleles:
-        logger.info(f'Could not parse genotype {genotype_string}')
+        logger.error(f'Could not parse genotype {genotype_string}')
     # Normalise to uppercase before returning
     return [a.upper() for a in alleles]
 
