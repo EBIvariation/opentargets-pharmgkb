@@ -11,7 +11,7 @@ logger.setLevel(level=logging.DEBUG)
 
 def get_ot_json_schema():
     # Temporary schema url for testing
-    schema_url = 'https://raw.githubusercontent.com/opentargets/json_schema/ds_3110_pharmacogenomics_schema/schemas/pharmacogenomics.json'
+    schema_url = 'https://raw.githubusercontent.com/opentargets/json_schema/master/schemas/pharmacogenomics.json'
     response = requests.get(schema_url)
     if response.ok:
         return response.json()

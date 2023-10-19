@@ -128,12 +128,13 @@ def get_genotype_ids(df, fasta_path, counts=None):
     df_with_ids = df.assign(parsed_genotype=df['Genotype/Allele'].apply(parse_genotype))
     df_with_ids = pd.merge(df_with_ids, df_with_ids.groupby(by='Variant/Haplotypes').aggregate(
         all_genotypes=('parsed_genotype', list)), on='Variant/Haplotypes')
-    # Get coordinates for each RS
+    # Get coordinates (chromsome, position, reference, and all alternate alleles) for each RS
     rs_to_coords = {}
     for i, row in df_with_ids.drop_duplicates(['Variant/Haplotypes']).iterrows():
         chrom, pos, ref, alleles_dict = fasta.get_chr_pos_ref(row['Variant/Haplotypes'], row['Location'],
                                                               row['all_genotypes'])
         rs_to_coords[row['Variant/Haplotypes']] = (chrom, pos, ref, alleles_dict)
+        # Generate per-variant counts, if applicable
         if not counts:
             continue
         counts.total_rs += 1
@@ -143,12 +144,12 @@ def get_genotype_ids(df, fasta_path, counts=None):
         if len(alleles_dict) <= 2:
             continue
         counts.rs_with_more_than_2_alleles += 1
-    # Get ID for each genotype
+    # Use rs_to_coords to generate genotypeId for each genotype
     for i, row in df_with_ids.iterrows():
         chrom, pos, ref, alleles_dict = rs_to_coords[row['Variant/Haplotypes']]
         if chrom and pos and ref and alleles_dict:
             df_with_ids.at[i, 'genotype_id'] = genotype_id(chrom, pos, ref, sorted([alleles_dict[a]
-                                                                                  for a in row['parsed_genotype']]))
+                                                                                    for a in row['parsed_genotype']]))
         else:
             df_with_ids.at[i, 'genotype_id'] = None
     return df_with_ids

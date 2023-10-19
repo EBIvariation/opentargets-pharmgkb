@@ -37,7 +37,7 @@ def parse_genotype(genotype_string):
     :return: list of alleles in the genotype, e.g. ['A'], ['T','A'], ['A','DEL'], ['CAG','CAGCAG']
     """
     alleles = []
-    # X chrom variants
+    # X/Y chrom variants
     if len(genotype_string) == 1:
         alleles.append(genotype_string)
 
