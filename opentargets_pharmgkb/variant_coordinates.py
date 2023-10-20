@@ -29,26 +29,58 @@ def get_chrom_pos_for_rs_from_ensembl(rsid):
     return None, None
 
 
+def parse_genotype(genotype_string):
+    """
+    Parse PGKB string representations of genotypes into alleles.
+
+    :param genotype_string: e.g. 'A', 'TA', 'A/del', 'CAG/CAGCAG'
+    :return: list of alleles in the genotype, e.g. ['A'], ['T','A'], ['A','DEL'], ['CAG','CAGCAG']
+    """
+    alleles = []
+    # X/Y chrom variants
+    if len(genotype_string) == 1:
+        alleles.append(genotype_string)
+
+    # SNPs
+    if len(genotype_string) == 2:
+        alleles.append(genotype_string[0])
+        alleles.append(genotype_string[1])
+
+    # short indels
+    m = re.match('([ACGT]+|del)/([ACGT]+|del)', genotype_string, re.IGNORECASE)
+    if m:
+        alleles.append(m.group(1))
+        alleles.append(m.group(2))
+
+    if not alleles:
+        logger.error(f'Could not parse genotype {genotype_string}')
+    # Normalise to uppercase before returning
+    return [a.upper() for a in alleles]
+
+
 class Fasta:
 
     def __init__(self, path_to_fasta):
         self.record_dict = SeqIO.to_dict(SeqIO.parse(path_to_fasta, 'fasta'))
 
-    def get_coordinates_for_clinical_annotation(self, rsid, location, all_genotypes):
+    def get_chr_pos_ref(self, rsid, location, all_parsed_genotypes):
         """
-        Gets vcf-style coordinate string (chr_pos_ref_alt) using location and genotype information.
+        Gets chromosome, position, and reference for a variant using location and genotype information.
 
         :param rsid: rsID of the variant
         :param location: string consisting of RefSeq accession and position separated by a colon,
                          e.g. 'NC_000001.11:46399999'
-        :param all_genotypes: list of genotype strings, e.g. ['TT', 'TA', 'AA']
-        :return: string of form chr_pos_ref_alt, or None if coordinates cannot be determined
+        :param all_parsed_genotypes: list of genotypes parsed into alleles, e.g. [['T', 'T'], ['T','A'], ['A','A']]
+        :return: tuple of (chr, pos, ref, alleles), or Nones if coordinates cannot be determined.
+                 alleles is a dict mapping allele string as present in all_parsed_genotypes, to an allele string with
+                 context possibly added - e.g. {'AAG': 'CAAG', 'DEL': 'C'}
         """
         if pd.isna(location):
-            return None
+            return None, None, None, None
         chrom, pos = location.strip().split(':')
         if not chrom or not pos:
-            return None
+            return None, None, None, None
+        chrom_num = self.get_chrom_num_from_refseq(chrom)
 
         # Ranges are inclusive of both start and end
         if '_' in pos:
@@ -58,50 +90,27 @@ class Fasta:
         else:
             start = end = int(pos)
 
-        alleles = set()
-        contains_del = False
-        for genotype in all_genotypes:
-            # X chrom variants
-            if len(genotype) == 1:
-                alleles.add(genotype)
-                continue
-            # SNPs
-            if len(genotype) == 2:
-                alleles.add(genotype[0])
-                alleles.add(genotype[1])
-                continue
-            # short indels
-            m = re.match('([ACGT]+|del)/([ACGT]+|del)', genotype, re.IGNORECASE)
-            if not m:
-                logger.info(f'Could not parse genotype for {rsid}: {genotype}')
-                continue
-            if m.group(1) == 'del'.lower() or m.group(2).lower() == 'del':
-                contains_del = True
-            alleles.add(m.group(1))
-            alleles.add(m.group(2))
-
+        alleles_dict = {alt: alt for genotype in all_parsed_genotypes for alt in genotype}
         # Correct for deletion alleles
-        if contains_del:
+        if 'DEL' in alleles_dict:
             if end == start:
                 end -= 1  # keep end == start if they began that way
             start -= 1
-            alleles = {self.add_context_base(chrom, start, allele) for allele in alleles}
+            alleles_dict = {allele: self.add_context_base(chrom, start, allele) for allele in alleles_dict}
 
-        if not alleles:
-            logger.warning(f'Could not parse genotypes: {rsid}\t{",".join(all_genotypes)}')
-            return None
+        if not alleles_dict:
+            logger.warning(f'Could not parse any genotypes for {rsid}')
+            return chrom_num, start, None, None
+
         ref = self.get_ref_from_fasta(chrom, start, end)
-        # Remove ref if present among alleles; otherwise report & skip
-        if ref in alleles:
-            alts = alleles - {ref}
-        else:
-            logger.warning(f'Ref not in alleles: {rsid}\t{ref}\t{",".join(alleles)}')
-            return None
-        chrom_num = self.get_chrom_num_from_refseq(chrom)
-        for alt in sorted(alts):
-            # TODO multiple IDs for multiple alts?
-            return f'{chrom_num}_{start}_{ref}_{alt}'
-        return None
+        # Report & skip if ref is not among the alleles
+        # TODO we can now support cases where ref is truly not among the annotated genotypes, but we can't distinguish
+        #  this situation from cases where the reference or location is wrong for some reason.
+        if ref not in alleles_dict.values():
+            logger.warning(f'Ref not in alleles: {rsid}\t{ref}\t{",".join(alleles_dict)}')
+            return chrom_num, start, None, None
+
+        return chrom_num, start, ref, alleles_dict
 
     @lru_cache
     def get_ref_from_fasta(self, chrom, start, end=None):

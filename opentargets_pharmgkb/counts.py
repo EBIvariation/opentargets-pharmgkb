@@ -28,6 +28,10 @@ class ClinicalAnnotationCounts:
         self.annot_with_pgkb_genes = 0
         self.annot_with_vep_genes = 0
         self.pgkb_vep_gene_diff = 0
+        # Variant counts
+        self.total_rs = 0
+        self.rs_with_alleles = 0
+        self.rs_with_more_than_2_alleles = 0
 
     def report(self):
         report_str = f'\nTotal clinical annotations: {self.clinical_annotations}\n'
@@ -54,5 +58,10 @@ class ClinicalAnnotationCounts:
                        f'({format_percent(self.annot_with_vep_genes, self.clinical_annotations)})\n')
         report_str += (f'\tPGKB genes != VEP genes: {self.pgkb_vep_gene_diff} '
                        f'({format_percent(self.pgkb_vep_gene_diff, self.clinical_annotations)})\n')
+        report_str += f'Total RS: {self.total_rs}\n'
+        report_str += (f'\tWith parsed alleles: {self.rs_with_alleles} '
+                       f'({format_percent(self.rs_with_alleles, self.total_rs)})\n')
+        report_str += (f'\t\tWith >2 alleles: {self.rs_with_more_than_2_alleles} '
+                       f'({format_percent(self.rs_with_more_than_2_alleles, self.rs_with_alleles)})\n')
         print(report_str)
         return report_str
