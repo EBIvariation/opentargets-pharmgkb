@@ -73,15 +73,13 @@ Other examples can be found in the [tests](tests/resources/expected_output.json)
 
 ### Variant coordinate algorithm
 
-TODO: describe this in words
-
 ```mermaid
 graph TD
     J[PharmGKB]
     H[FASTA files]
     E[Clinical alleles table]
     A[Variant table]    
-    D[Generate 'chr_pos_ref_alt' identifier]
+    D[Generate 'chr_pos_ref_allele1,allele2' identifier]
     S[NCBI Genome Assembly]
     J --> A
     J --> E
