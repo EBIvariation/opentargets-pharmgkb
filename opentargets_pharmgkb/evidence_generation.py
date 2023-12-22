@@ -205,7 +205,7 @@ def grouper(iterable, n):
 
 def process_to_list(b):
     """Wrapper for process_variants because multiprocessing does not like generators."""
-    return list(process_variants(b))
+    return list(process_variants(b, False))
 
 
 def explode_and_map_genes(df):
@@ -218,7 +218,7 @@ def explode_and_map_genes(df):
     split_genes = explode_column(df, 'Gene', 'split_gene')
     ensembl_ids = query_biomart(
         ('hgnc_symbol', 'split_gene'),
-        ('ensembl_gene_id', 'gene_from_pgkb'),
+        [('ensembl_gene_id', 'gene_from_pgkb')],
         split_genes['split_gene'].dropna().drop_duplicates().tolist()
     )
     mapped_genes = pd.merge(split_genes, ensembl_ids, on='split_gene', how='left')
