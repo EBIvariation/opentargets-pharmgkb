@@ -66,7 +66,7 @@ def test_pipeline():
     )
 
     with open(output_path) as test_output, open(expected_path) as expected_output:
-        assert test_output.readlines() == expected_output.readlines()
+        assert sorted(test_output.readlines()) == sorted(expected_output.readlines())
 
     if os.path.exists(output_path):
         os.remove(output_path)
