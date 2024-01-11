@@ -34,6 +34,19 @@ def test_get_functional_consequences():
     assert 'intron_variant' in annotated_df['consequence_term'].values
 
 
+def test_get_functional_consequences_ref_ref():
+    df = pd.DataFrame(columns=['genotype_id'], data=[['10_100980986_C_C,C']])
+    # If there is no variant-containing genotype we will get an error
+    with pytest.raises(KeyError):
+        get_functional_consequences(df)
+    # Adding a variant-containing genotype yields 1 no_sequence_alteration row for each overlapping gene
+    df = pd.concat((df, pd.DataFrame(columns=['genotype_id'], data=[['10_100980986_C_C,T']])))
+    annotated_df = get_functional_consequences(df)
+    assert annotated_df.shape == (4, 3)
+    assert 'ENSG00000095539' in annotated_df['overlapping_gene'].values
+    assert 'no_sequence_alteration' in annotated_df['consequence_term'].values
+
+
 def test_explode_and_map_drugs():
     drugs_table = read_tsv_to_df(os.path.join(resources_dir, 'drugs.tsv'))
     df = pd.DataFrame(columns=['Drug(s)'], data=[['tamoxifen; fluorouracil'], ['peginterferon alfa-2a']])
