@@ -2,6 +2,10 @@ import numpy as np
 import pandas as pd
 
 
+def read_tsv_to_df(path):
+    return pd.read_csv(path, sep='\t', dtype=str)
+
+
 def none_to_nan(x):
     return np.nan if x is None else x
 

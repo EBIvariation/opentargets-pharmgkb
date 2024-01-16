@@ -13,7 +13,7 @@ from cmat.output_generation.consequence_type import get_so_accession_dict
 
 from opentargets_pharmgkb.counts import ClinicalAnnotationCounts
 from opentargets_pharmgkb.ontology_apis import get_chebi_iri, get_efo_iri
-from opentargets_pharmgkb.pandas_utils import none_to_nan, explode_column
+from opentargets_pharmgkb.pandas_utils import none_to_nan, explode_column, read_tsv_to_df
 from opentargets_pharmgkb.validation import validate_evidence_string
 from opentargets_pharmgkb.variant_coordinates import Fasta, parse_genotype
 
@@ -104,10 +104,6 @@ def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
     if invalid_evidence:
         logger.error('Invalid evidence strings occurred, please check the logs for the details')
         sys.exit(1)
-
-
-def read_tsv_to_df(path):
-    return pd.read_csv(path, sep='\t', dtype=str)
 
 
 def genotype_id(chrom, pos, ref, parsed_genotype):
@@ -205,7 +201,7 @@ def grouper(iterable, n):
 
 def process_to_list(b):
     """Wrapper for process_variants because multiprocessing does not like generators."""
-    return list(process_variants(b))
+    return list(process_variants(b, False))
 
 
 def explode_and_map_genes(df):
@@ -218,7 +214,7 @@ def explode_and_map_genes(df):
     split_genes = explode_column(df, 'Gene', 'split_gene')
     ensembl_ids = query_biomart(
         ('hgnc_symbol', 'split_gene'),
-        ('ensembl_gene_id', 'gene_from_pgkb'),
+        [('ensembl_gene_id', 'gene_from_pgkb')],
         split_genes['split_gene'].dropna().drop_duplicates().tolist()
     )
     mapped_genes = pd.merge(split_genes, ensembl_ids, on='split_gene', how='left')
