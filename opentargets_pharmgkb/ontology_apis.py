@@ -60,4 +60,6 @@ def get_efo_iri(phenotype_name):
             logger.warning(f'Found multiple mappings for {phenotype_name}: {",".join(efo_uris)}')
             return None
         return efo_uris[0]
-    return None
+    else:
+        logger.warning(f'Found no mappings for {phenotype_name}')
+        return None
