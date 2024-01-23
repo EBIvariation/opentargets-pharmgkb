@@ -15,6 +15,7 @@ class ClinicalAnnotationCounts:
         self.with_rs = 0
         # Counts after exploding by each attribute
         self.exploded_alleles = 0
+        self.exploded_pgx_cat = 0
         self.exploded_drugs = 0
         self.exploded_phenotypes = 0
         # Output counts (after annotation and exploding)
@@ -38,9 +39,11 @@ class ClinicalAnnotationCounts:
         report_str += f'\tWith RS: {self.with_rs} ({format_percent(self.with_rs, self.clinical_annotations)})\n'
         report_str += (f'\t\t1. Exploded by allele: {self.exploded_alleles} '
                        f'({format_decimal(self.exploded_alleles, self.with_rs)}x)\n')
-        report_str += (f'\t\t2. Exploded by drug: {self.exploded_drugs} '
-                       f'({format_decimal(self.exploded_drugs, self.exploded_alleles)}x)\n')
-        report_str += (f'\t\t3. Exploded by phenotype: {self.exploded_phenotypes}'
+        report_str += (f'\t\t2. Exploded by PGx category: {self.exploded_pgx_cat} '
+                       f'({format_decimal(self.exploded_pgx_cat, self.exploded_alleles)}x)\n')
+        report_str += (f'\t\t3. Exploded by drug: {self.exploded_drugs} '
+                       f'({format_decimal(self.exploded_drugs, self.exploded_pgx_cat)}x)\n')
+        report_str += (f'\t\t4. Exploded by phenotype: {self.exploded_phenotypes}'
                        f' ({format_decimal(self.exploded_phenotypes, self.exploded_drugs)}x)\n')
         report_str += f'Total evidence strings: {self.evidence_strings}\n'
         report_str += f'\tWith CHEBI: {self.with_chebi} ({format_percent(self.with_chebi, self.evidence_strings)})\n'

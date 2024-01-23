@@ -55,7 +55,10 @@ def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
     merged_with_alleles_table = pd.merge(merged_with_variants_table, clinical_alleles_table, on=ID_COL_NAME, how='left')
     counts.exploded_alleles = len(merged_with_alleles_table)
 
-    mapped_drugs = explode_and_map_drugs(merged_with_alleles_table, drugs_table)
+    exploded_pgx_cat = explode_column(merged_with_alleles_table, 'Phenotype Category', 'split_pgx_category')
+    counts.exploded_pgx_cat = len(exploded_pgx_cat)
+
+    mapped_drugs = explode_and_map_drugs(exploded_pgx_cat, drugs_table)
     counts.exploded_drugs = len(mapped_drugs)
 
     mapped_phenotypes = explode_and_map_phenotypes(mapped_drugs)
@@ -80,6 +83,7 @@ def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
 
     # Generate evidence
     so_accession_dict = get_so_accession_dict()
+    so_accession_dict['no_sequence_alteration'] = 'SO_0002073'
     evidence = [
         generate_clinical_annotation_evidence(so_accession_dict, created_date, row)
         for _, row in evidence_table.iterrows()
@@ -179,6 +183,17 @@ def get_functional_consequences(df):
         for variant_id, gene_id, gene_symbol, consequence_term in batch
         for genotype_id in vep_id_to_genotype_ids[variant_id]
     ]).drop_duplicates()
+    # For every VEP id, also record the no_sequence_alteration consequence for the corresponding ref/ref genotype
+    ref_ref_consequences = pd.DataFrame(data=[
+        {
+            'genotype_id': vep_id_to_ref_ref_id(variant_id),
+            'overlapping_gene': gene_id,
+            'consequence_term': 'no_sequence_alteration'
+        }
+        for batch in all_consequences
+        for variant_id, gene_id, _, _ in batch
+    ]).drop_duplicates()
+    mapped_consequences = pd.concat((mapped_consequences, ref_ref_consequences))
     return pd.merge(df, mapped_consequences, on='genotype_id', how='left')
 
 
@@ -192,6 +207,12 @@ def genotype_id_to_vep_ids(coord_id):
         # Skip non-variants
         if alt != ref:
             yield f'{chrom} {pos} . {ref} {alt}'
+
+
+def vep_id_to_ref_ref_id(vep_id):
+    """Converts a VEP compatible variant ID to an underscore-separated ref/ref genotype identifier."""
+    chrom, pos, iden, ref, alt = vep_id.split(' ')
+    return f'{chrom}_{pos}_{ref}_{ref},{ref}'
 
 
 def grouper(iterable, n):
@@ -310,7 +331,7 @@ def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
         # PHENOTYPE ATTRIBUTES
         'drugFromSource': row['split_drug'],
         'drugId': iri_to_code(row['chebi']),
-        'pgxCategory': row['Phenotype Category'].lower(),
+        'pgxCategory': row['split_pgx_category'].lower(),
         'phenotypeText': row['split_phenotype'],
         'phenotypeFromSourceId': iri_to_code(row['efo'])
     }
