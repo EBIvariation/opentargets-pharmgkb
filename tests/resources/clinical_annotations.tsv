@@ -9,3 +9,5 @@ Clinical Annotation ID	Variant/Haplotypes	Gene	Level of Evidence	Level Override	
 1444668808	rs1799752	ACE	3		Tier 1 VIP	0.75	Efficacy	2	2	irbesartan	Hypertension;Hypertrophy, Left Ventricular	2021-09-09	https://www.pharmgkb.org/clinicalAnnotation/1444668808	
 1451114960	rs45445694	TYMS	3		Tier 1 VIP	3.25	Efficacy	13	13	fluorouracil;FOLFIRI;FOLFOX	overall survival;progression-free survival	2021-03-24	https://www.pharmgkb.org/clinicalAnnotation/1451114960	
 1449566379	rs11065987		3			2.5	Efficacy;Metabolism/PK	1	1	hydrochlorothiazide	Hypertension	2021-03-24	https://www.pharmgkb.org/clinicalAnnotation/1449566379
+1448427588	GSTT1 non-null, GSTT1 null	GSTT1	3			2.75	Toxicity	1	1	clozapine		2021-03-24	https://www.pharmgkb.org/clinicalAnnotation/1448427588
+1183621000	G6PD A- 202A_376G, G6PD B (reference), G6PD Mediterranean, Dallas, Panama, Sassari, Cagliari, Birmingham	G6PD	1A		Tier 1 VIP	103.0	Toxicity	21	23	rasburicase	Hemolysis;Methemoglobinemia	2023-01-17	https://www.pharmgkb.org/clinicalAnnotation/1183621000	Pediatric

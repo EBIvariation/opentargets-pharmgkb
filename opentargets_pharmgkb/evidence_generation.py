@@ -357,9 +357,10 @@ def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
         'evidenceLevel': row['Level of Evidence'],
         'literature': [str(x) for x in row['publications']],
 
-        # GENOTYPE ATTRIBUTES
+        # GENOTYPE/ALLELE ATTRIBUTES
         'genotype': row['Genotype/Allele'],
         'genotypeAnnotationText': row['Annotation Text'],
+        'alleleFunction': row['Allele Function'],
 
         # PHENOTYPE ATTRIBUTES
         'drugFromSource': row['split_drug'],
