@@ -31,6 +31,7 @@ def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
     clinical_evidence_path = os.path.join(data_dir, 'clinical_ann_evidence.tsv')
     variants_path = os.path.join(data_dir, 'variants.tsv')
     drugs_path = os.path.join(data_dir, 'drugs.tsv')
+    relationships_path = os.path.join(data_dir, 'relationships.tsv')
     for p in (clinical_annot_path, clinical_alleles_path, clinical_evidence_path, variants_path, drugs_path):
         if not os.path.exists(p):
             logger.error(f'Missing required data file: {p}')
@@ -41,6 +42,7 @@ def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
     clinical_evidence_table = read_tsv_to_df(clinical_evidence_path)
     variants_table = read_tsv_to_df(variants_path)
     drugs_table = read_tsv_to_df(drugs_path)
+    relationships_table = read_tsv_to_df(relationships_path)
 
     # Gather input counts
     counts = ClinicalAnnotationCounts()
@@ -69,7 +71,7 @@ def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
     rs_consequences_table = get_functional_consequences(genotype_ids_table)
 
     # BRANCH 2: For named alleles, form haplotype IDs + map PGKB genes with Biomart
-    haplotype_ids_table = get_haplotype_ids(no_rs)
+    haplotype_ids_table = get_haplotype_ids(no_rs, relationships_table)
     no_rs_genes_table = explode_and_map_genes(haplotype_ids_table)
 
     # Merge the tables - will fill in NaNs where columns are missing
@@ -239,12 +241,13 @@ def process_to_list(b):
     return list(process_variants(b, False))
 
 
-def get_haplotype_ids(df):
+def get_haplotype_ids(df, relationships_table):
     """
     Get haplotype IDs (gene symbol + allele name) for dataframe.
 
     :param df: dataframe to annotate (needs 'Gene' and 'Genotype/Allele' columns)
-    :return: dataframe with 'haplotype_id' column added
+    :param relationships_table: table of entity relationships in PGKB
+    :return: dataframe with 'haplotype_id' and 'pgkb_haplotype_id' columns added
     """
     # Filter out rows where gene column is missing or contains multiple genes.
     # This is just a safeguard, we really shouldn't have these.
@@ -262,7 +265,20 @@ def get_haplotype_ids(df):
             # e.g. "*3" or "A- 202A_376G"
             + single_gene['Genotype/Allele']
     )
+    # Fetch the internal haplotype ID
+    single_gene['pgkb_haplotype_id'] = single_gene['haplotype_id'].apply(hap_id_to_pgkb_id, args=(relationships_table,))
+
     return single_gene
+
+
+def hap_id_to_pgkb_id(id_, relationships_table):
+    if pd.notna(id_):
+        vals = set(relationships_table[relationships_table['Entity1_name'] == id_]['Entity1_id'])
+        if len(vals) != 1:
+            logger.warning(f'Could not determine internal ID for haplotype {id_}')
+        else:
+            return vals.pop()
+    return None
 
 
 def explode_and_map_genes(df):
@@ -388,6 +404,7 @@ def add_variant_haplotype_attributes(so_accession_dict, row, evidence_string):
     else:
         evidence_string.update({
             'haplotypeId': row['haplotype_id'],
+            'internalHaplotypeId': row['pgkb_haplotype_id'],
             'targetFromSourceId': row['gene_from_pgkb']
         })
     return evidence_string

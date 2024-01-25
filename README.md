@@ -8,12 +8,14 @@ export DATA_DIR=<directory for data>
 wget https://api.pharmgkb.org/v1/download/file/data/clinicalAnnotations.zip
 wget https://api.pharmgkb.org/v1/download/file/data/drugs.zip
 wget https://api.pharmgkb.org/v1/download/file/data/variants.zip
+wget https://api.pharmgkb.org/v1/download/file/data/relationships.zip
 
 unzip -j clinicalAnnotations.zip "*.tsv" -d $DATA_DIR
 unzip -j clinicalAnnotations.zip "CREATED*.txt" -d $DATA_DIR
 unzip -j drugs.zip "*.tsv" -d $DATA_DIR
 unzip -j variants.zip "*.tsv" -d $DATA_DIR
-rm clinicalAnnotations.zip drugs.zip variants.zip
+unzip -j relationships.zip "*.tsv" -d $DATA_DIR
+rm clinicalAnnotations.zip drugs.zip variants.zip relationships.zip
 
 # Run pipeline
 generate_evidence.py --data-dir $DATA_DIR --fasta <path to fasta> --created-date <created date> --output-path evidence.json
@@ -22,6 +24,7 @@ generate_evidence.py --data-dir $DATA_DIR --fasta <path to fasta> --created-date
 ## Schema documentation
 
 Unless otherwise mentioned, data is taken directly from PharmGKB.
+<!-- TODO update this -->
 
 Field | Description | Example
 --|--|--
