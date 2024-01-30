@@ -41,7 +41,7 @@ genotype | Genotype or allele string | SNP `"TA"`, indel `"del/GAG"`, repeat `"(
 genotypeAnnotationText | Full annotation string for genotype or allele | `"Patients with the rs121918596 del/GAG genotype may develop malignant hyperthermia when treated with volatile anesthetics [...]"`
 alleleFunction | Allele function annotation (see Table 2 [here](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5253119/)) | `"Decreased function"`
 haplotypeId | Name of haplotype; can be an allele or a genotype | `"CYP2B6*6"` or `"GSTT1 non-null/non-null"`
-internalHaplotypeId | Internal PGKB identifier for the haplotype | `"PA165818762"`
+haplotypeFromSourceId | Internal PGKB identifier for the haplotype | `"PA165818762"`
 drugFromSource | Drug name | `"succinylcholine"`
 drugId | CHEBI ID of drug, mapped through OLS | `"CHEBI_45652"`
 pgxCategory | Pharmacogenomics phenotype category | `"toxicity"`

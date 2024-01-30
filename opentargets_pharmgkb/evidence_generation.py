@@ -406,7 +406,7 @@ def add_variant_haplotype_attributes(so_accession_dict, row, evidence_string):
     else:
         evidence_string.update({
             'haplotypeId': row['haplotype_id'],
-            'internalHaplotypeId': row['pgkb_haplotype_id'],
+            'haplotypeFromSourceId': row['pgkb_haplotype_id'],
             'targetFromSourceId': row['gene_from_pgkb']
         })
     return evidence_string
