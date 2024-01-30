@@ -88,6 +88,8 @@ def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
     counts.with_efo = evidence_table['efo'].count()
     counts.with_consequence = evidence_table['consequence_term'].count()
     counts.with_target_gene = evidence_table['overlapping_gene'].count() + evidence_table['gene_from_pgkb'].count()
+    counts.with_haplotype = evidence_table['haplotype_id'].nunique()
+    counts.resolved_haplotype_id = evidence_table['pgkb_haplotype_id'].nunique()
 
     # Generate evidence
     so_accession_dict = get_so_accession_dict()

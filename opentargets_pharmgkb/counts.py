@@ -24,6 +24,8 @@ class ClinicalAnnotationCounts:
         self.with_efo = 0
         self.with_consequence = 0
         self.with_target_gene = 0
+        self.with_haplotype = 0
+        self.resolved_haplotype_id = 0  # indicates we were able to resolve the haplotype to a PGKB internal ID
         # Evaluation counts - after annotation but without exploding
         self.annot_with_pgkb_genes = 0
         self.annot_with_vep_genes = 0
@@ -65,5 +67,8 @@ class ClinicalAnnotationCounts:
                        f'({format_percent(self.rs_with_alleles, self.total_rs)})\n')
         report_str += (f'\t\tWith >2 alleles: {self.rs_with_more_than_2_alleles} '
                        f'({format_percent(self.rs_with_more_than_2_alleles, self.rs_with_alleles)})\n')
+        report_str += f'Total haplotype IDs: {self.with_haplotype}\n'
+        report_str += (f'\tResolved to PGKB IDs: {self.resolved_haplotype_id} '
+                       f'({format_percent(self.resolved_haplotype_id, self.with_haplotype)})\n')
         print(report_str)
         return report_str
