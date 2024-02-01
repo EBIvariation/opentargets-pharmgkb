@@ -39,11 +39,11 @@ variantFunctionalConsequenceId | Sequence Ontology term, from VEP | `"SO_0001822
 targetFromSourceId | Ensembl stable gene ID, from VEP (rsIDs) or PGKB mapped through BioMart (named alleles) | `"ENSG00000196218"`
 genotype | Genotype or allele string | SNP `"TA"`, indel `"del/GAG"`, repeat `"(CA)16/(CA)17"`, named allele `"*6"`
 genotypeAnnotationText | Full annotation string for genotype or allele | `"Patients with the rs121918596 del/GAG genotype may develop malignant hyperthermia when treated with volatile anesthetics [...]"`
-alleleFunction | Allele function annotation (see Table 2 [here](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5253119/)) | `"Decreased function"`
+directionality | Allele function annotation (see Table 2 [here](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5253119/)) | `"Decreased function"`
 haplotypeId | Name of haplotype; can be an allele or a genotype | `"CYP2B6*6"` or `"GSTT1 non-null/non-null"`
 haplotypeFromSourceId | Internal PGKB identifier for the haplotype | `"PA165818762"`
 drugFromSource | Drug name | `"succinylcholine"`
-drugId | CHEBI ID of drug, mapped through OLS | `"CHEBI_45652"`
+drugFromSourceId | CHEBI ID of drug, mapped through OLS | `"CHEBI_45652"`
 pgxCategory | Pharmacogenomics phenotype category | `"toxicity"`
 phenotypeText | Phenotype name | `"Malignant Hyperthermia"`
 phenotypeFromSourceId | EFO ID of phenotype, mapped through ZOOMA / OXO | `"Orphanet_423"`

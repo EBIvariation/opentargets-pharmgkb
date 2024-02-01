@@ -102,8 +102,7 @@ def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
     invalid_evidence = False
     with open(output_path, 'w+') as output:
         for ev_string in evidence:
-            if True:  # TODO change back once schema fixed
-            # if validate_evidence_string(ev_string):
+            if validate_evidence_string(ev_string):
                 output.write(json.dumps(ev_string)+'\n')
             else:
                 invalid_evidence = True
@@ -378,11 +377,11 @@ def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
         # GENOTYPE/ALLELE ATTRIBUTES
         'genotype': row['Genotype/Allele'],
         'genotypeAnnotationText': row['Annotation Text'],
-        'alleleFunction': row['Allele Function'],
+        'directionality': row['Allele Function'],
 
         # PHENOTYPE ATTRIBUTES
         'drugFromSource': row['split_drug'],
-        'drugId': iri_to_code(row['chebi']),
+        'drugFromSourceId': iri_to_code(row['chebi']),
         'pgxCategory': row['split_pgx_category'].lower(),
         'phenotypeText': row['split_phenotype'],
         'phenotypeFromSourceId': iri_to_code(row['efo'])
