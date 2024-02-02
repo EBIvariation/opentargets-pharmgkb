@@ -1,0 +1,13 @@
+Entity1_id	Entity1_name	Entity1_type	Entity2_id	Entity2_name	Entity2_type	Evidence	Association	PK	PD	PMIDs
+PA165947830	G6PD Mediterranean Haplotype	Haplotype	PA449009	ciprofloxacin	Chemical	ClinicalAnnotation	associated		PD	20127091
+PA451103	primaquine	Chemical	PA165947827	G6PD A- 202A_376G	Haplotype	VariantAnnotation	associated
+PA165947826	G6PD B (reference)	Haplotype	PA451544	sulfamethoxazole	Chemical	ClinicalAnnotation	associated		PD	4818663;5061461;990860
+PA165947827	G6PD A- 202A_376G	Haplotype	PA443890	Diabetes Mellitus, Type 2	Disease	VariantAnnotation	associated			15126005;21147013
+PA166048678	GSTT1 null	Haplotype	PA164712505	Antivirals for treatment of HIV infections, combinations	Chemical	VariantAnnotation	not associated			26667829
+PA166121127	G6PD Mediterranean, Dallas, Panama, Sassari, Cagliari, Birmingham	Haplotype	PA448497	aspirin	Chemical	ClinicalAnnotation,VariantAnnotation	associated		PD	10793824;2502894
+PA166121127	G6PD Mediterranean, Dallas, Panama, Sassari, Cagliari, Birmingham	Haplotype	PA448948	chloroquine	Chemical	ClinicalAnnotation,VariantAnnotation	ambiguous		PD	1247492;15655011;79931
+PA166121127	G6PD Mediterranean, Dallas, Panama, Sassari, Cagliari, Birmingham	Haplotype	PA449212	daunorubicin	Chemical	VariantAnnotation	associated
+PA165816542	CYP2C9*1	Haplotype	PA450401	methadone	Chemical	ClinicalAnnotation,VariantAnnotation	ambiguous			16338275;17178267;28723731
+PA165988479	CYP2D6*1xN	Haplotype	PA451333	sertraline	Chemical	VariantAnnotation	not associated			22775532
+PA165987831	HLA-B*58:01	Haplotype	PA444109	Exanthema	Disease	VariantAnnotation	ambiguous			21393610;25566896
+PA165956630	HLA-B*58:01:01	Haplotype	PA445738	Stevens-Johnson Syndrome	Disease	VariantAnnotation	associated			28509689

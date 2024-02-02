@@ -3,7 +3,7 @@ import pandas as pd
 
 
 def read_tsv_to_df(path):
-    return pd.read_csv(path, sep='\t', dtype=str)
+    return pd.read_csv(path, sep='\t', dtype=str, na_values=[''], keep_default_na=False)
 
 
 def none_to_nan(x):

@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 
 import jsonschema
 import requests
@@ -8,10 +9,11 @@ logging.basicConfig()
 logger = logging.getLogger(__package__)
 logger.setLevel(level=logging.DEBUG)
 
+OT_SCHEMA_VERSION = open(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'OT_SCHEMA_VERSION')).read().strip()
 
-def get_ot_json_schema():
-    # Temporary schema url for testing
-    schema_url = 'https://raw.githubusercontent.com/opentargets/json_schema/master/schemas/pharmacogenomics.json'
+
+def get_ot_json_schema(version=OT_SCHEMA_VERSION):
+    schema_url = f'https://raw.githubusercontent.com/opentargets/json_schema/{version}/schemas/pharmacogenomics.json'
     response = requests.get(schema_url)
     if response.ok:
         return response.json()

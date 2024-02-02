@@ -6,6 +6,7 @@ import sys
 from collections import defaultdict
 from itertools import zip_longest
 
+import numpy as np
 import pandas as pd
 from cmat.consequence_prediction.common.biomart import query_biomart
 from cmat.consequence_prediction.snp_indel_variants.pipeline import process_variants
@@ -30,6 +31,7 @@ def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
     clinical_evidence_path = os.path.join(data_dir, 'clinical_ann_evidence.tsv')
     variants_path = os.path.join(data_dir, 'variants.tsv')
     drugs_path = os.path.join(data_dir, 'drugs.tsv')
+    relationships_path = os.path.join(data_dir, 'relationships.tsv')
     for p in (clinical_annot_path, clinical_alleles_path, clinical_evidence_path, variants_path, drugs_path):
         if not os.path.exists(p):
             logger.error(f'Missing required data file: {p}')
@@ -40,17 +42,15 @@ def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
     clinical_evidence_table = read_tsv_to_df(clinical_evidence_path)
     variants_table = read_tsv_to_df(variants_path)
     drugs_table = read_tsv_to_df(drugs_path)
-
-    # Restrict to variants with rsIDs
-    rs_only_table = clinical_annot_table[clinical_annot_table['Variant/Haplotypes'].str.contains('rs')]
+    relationships_table = read_tsv_to_df(relationships_path)
 
     # Gather input counts
     counts = ClinicalAnnotationCounts()
     counts.clinical_annotations = len(clinical_annot_table)
-    counts.with_rs = len(rs_only_table)
+    counts.with_rs = len(clinical_annot_table[clinical_annot_table['Variant/Haplotypes'].str.startswith('rs')])
 
     # Main processing
-    merged_with_variants_table = pd.merge(rs_only_table, variants_table, left_on='Variant/Haplotypes',
+    merged_with_variants_table = pd.merge(clinical_annot_table, variants_table, left_on='Variant/Haplotypes',
                                           right_on='Variant Name', how='left')
     merged_with_alleles_table = pd.merge(merged_with_variants_table, clinical_alleles_table, on=ID_COL_NAME, how='left')
     counts.exploded_alleles = len(merged_with_alleles_table)
@@ -64,9 +64,18 @@ def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
     mapped_phenotypes = explode_and_map_phenotypes(mapped_drugs)
     counts.exploded_phenotypes = len(mapped_phenotypes)
 
-    # Coordinates and consequences
-    coordinates_table = get_genotype_ids(mapped_phenotypes, fasta_path, counts)
-    consequences_table = get_functional_consequences(coordinates_table)
+    with_rs, no_rs = split_df_with_or_without_rs(mapped_phenotypes)
+
+    # BRANCH 1: For rsIds, form genotype IDs + get consequences from VEP
+    genotype_ids_table = get_genotype_ids(with_rs, fasta_path, counts)
+    rs_consequences_table = get_functional_consequences(genotype_ids_table)
+
+    # BRANCH 2: For named alleles, form haplotype IDs + map PGKB genes with Biomart
+    haplotype_ids_table = get_haplotype_ids(no_rs, relationships_table)
+    no_rs_genes_table = explode_and_map_genes(haplotype_ids_table)
+
+    # Merge the tables - will fill in NaNs where columns are missing
+    consequences_table = pd.concat((rs_consequences_table, no_rs_genes_table))
 
     # Add clinical evidence with PMIDs
     pmid_evidence = clinical_evidence_table[clinical_evidence_table['PMID'].notna()]
@@ -78,8 +87,9 @@ def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
     counts.with_chebi = evidence_table['chebi'].count()
     counts.with_efo = evidence_table['efo'].count()
     counts.with_consequence = evidence_table['consequence_term'].count()
-    # counts.with_pgkb_gene = evidence_table['gene_from_pgkb'].count()
-    counts.with_vep_gene = evidence_table['overlapping_gene'].count()
+    counts.with_target_gene = evidence_table['overlapping_gene'].count() + evidence_table['gene_from_pgkb'].count()
+    counts.with_haplotype = evidence_table['haplotype_id'].nunique()
+    counts.resolved_haplotype_id = evidence_table['pgkb_haplotype_id'].nunique()
 
     # Generate evidence
     so_accession_dict = get_so_accession_dict()
@@ -98,9 +108,11 @@ def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
                 invalid_evidence = True
 
     # Final count report
-    if not debug_path:
-        debug_path = f'{output_path.rsplit(".", 1)[0]}_genes.csv'
-    gene_comparison_counts(evidence_table, counts, debug_path=debug_path)
+    # NB. gene comparison conflicts with named allele processing,
+    #  restore if needed for https://github.com/EBIvariation/opentargets-pharmgkb/issues/21
+    # if not debug_path:
+    #     debug_path = f'{output_path.rsplit(".", 1)[0]}_genes.csv'
+    # gene_comparison_counts(evidence_table, counts, debug_path=debug_path)
     counts.report()
 
     # Exit with an error code if any invalid evidence is produced
@@ -108,6 +120,11 @@ def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
     if invalid_evidence:
         logger.error('Invalid evidence strings occurred, please check the logs for the details')
         sys.exit(1)
+
+
+def split_df_with_or_without_rs(df):
+    m = df['Variant/Haplotypes'].str.startswith('rs')
+    return df[m], df[~m]
 
 
 def genotype_id(chrom, pos, ref, parsed_genotype):
@@ -128,7 +145,7 @@ def get_genotype_ids(df, fasta_path, counts=None):
     df_with_ids = df.assign(parsed_genotype=df['Genotype/Allele'].apply(parse_genotype))
     df_with_ids = pd.merge(df_with_ids, df_with_ids.groupby(by='Variant/Haplotypes').aggregate(
         all_genotypes=('parsed_genotype', list)), on='Variant/Haplotypes')
-    # Get coordinates (chromsome, position, reference, and all alternate alleles) for each RS
+    # Get coordinates (chromosome, position, reference, and all alternate alleles) for each RS
     rs_to_coords = {}
     for i, row in df_with_ids.drop_duplicates(['Variant/Haplotypes']).iterrows():
         chrom, pos, ref, alleles_dict = fasta.get_chr_pos_ref(row['Variant/Haplotypes'], row['Location'],
@@ -225,6 +242,46 @@ def process_to_list(b):
     return list(process_variants(b, False))
 
 
+def get_haplotype_ids(df, relationships_table):
+    """
+    Get haplotype IDs (gene symbol + allele name) for dataframe.
+
+    :param df: dataframe to annotate (needs 'Gene' and 'Genotype/Allele' columns)
+    :param relationships_table: table of entity relationships in PGKB
+    :return: dataframe with 'haplotype_id' and 'pgkb_haplotype_id' columns added
+    """
+    # Filter out rows where gene column is missing or contains multiple genes.
+    # This is just a safeguard, we really shouldn't have these.
+    single_gene = df[~df['Gene'].str.contains(';', na=True)]
+    if len(single_gene) != len(df):
+        logger.warning(
+            f'Tried to get haplotype IDs for {len(df)-len(single_gene)} rows with multiple or missing genes!'
+        )
+    # Construct the haplotype ID
+    single_gene['haplotype_id'] = (
+            # e.g. "CYP2D6" or "G6PD"
+            single_gene['Gene']
+            # whether to concatenate with a space or not
+            + np.where(single_gene['Genotype/Allele'].str.startswith('*'), '', ' ')
+            # e.g. "*3" or "A- 202A_376G"
+            + single_gene['Genotype/Allele']
+    )
+    # Fetch the internal haplotype ID
+    single_gene['pgkb_haplotype_id'] = single_gene['haplotype_id'].apply(hap_id_to_pgkb_id, args=(relationships_table,))
+
+    return single_gene
+
+
+def hap_id_to_pgkb_id(id_, relationships_table):
+    if pd.notna(id_):
+        vals = set(relationships_table[relationships_table['Entity1_name'] == id_]['Entity1_id'])
+        if len(vals) != 1:
+            logger.warning(f'Could not determine internal ID for haplotype {id_}')
+        else:
+            return vals.pop()
+    return None
+
+
 def explode_and_map_genes(df):
     """
     Maps gene symbols to Ensembl gene IDs using BioMart. Explodes multiple genes in single row.
@@ -306,7 +363,7 @@ def iri_to_code(iri):
 
 def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
     """Generates an evidence string for a PharmGKB clinical annotation."""
-    evidence_string = {
+    partial_evidence_string = {
         # DATA SOURCE ATTRIBUTES
         'datasourceId': 'pharmgkb',
         'datasourceVersion': created_date,
@@ -317,27 +374,40 @@ def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
         'evidenceLevel': row['Level of Evidence'],
         'literature': [str(x) for x in row['publications']],
 
-        # VARIANT ATTRIBUTES
-        'genotypeId': row['genotype_id'],
-        'variantRsId': row['Variant/Haplotypes'],
-        # 'originalSourceGeneId': row['gene_from_pgkb'],
-        'variantFunctionalConsequenceId': so_accession_dict.get(row['consequence_term'], None),
-        'targetFromSourceId': row['overlapping_gene'],
-
-        # GENOTYPE ATTRIBUTES
+        # GENOTYPE/ALLELE ATTRIBUTES
         'genotype': row['Genotype/Allele'],
         'genotypeAnnotationText': row['Annotation Text'],
+        'directionality': row['Allele Function'],
 
         # PHENOTYPE ATTRIBUTES
         'drugFromSource': row['split_drug'],
-        'drugId': iri_to_code(row['chebi']),
+        'drugFromSourceId': iri_to_code(row['chebi']),
         'pgxCategory': row['split_pgx_category'].lower(),
         'phenotypeText': row['split_phenotype'],
         'phenotypeFromSourceId': iri_to_code(row['efo'])
     }
+    evidence_string = add_variant_haplotype_attributes(so_accession_dict, row, partial_evidence_string)
     # Remove the attributes with empty values (either None or empty lists).
     evidence_string = {key: value for key, value in evidence_string.items()
                        if value and (isinstance(value, list) or pd.notna(value))}
+    return evidence_string
+
+
+def add_variant_haplotype_attributes(so_accession_dict, row, evidence_string):
+    """Adds attributes to the evidence string depending on whether the record is for an rsID variant or not."""
+    if row['Variant/Haplotypes'].startswith('rs'):
+        evidence_string.update({
+            'genotypeId': row['genotype_id'],
+            'variantRsId': row['Variant/Haplotypes'],
+            'variantFunctionalConsequenceId': so_accession_dict.get(row['consequence_term'], None),
+            'targetFromSourceId': row['overlapping_gene'],
+        })
+    else:
+        evidence_string.update({
+            'haplotypeId': row['haplotype_id'],
+            'haplotypeFromSourceId': row['pgkb_haplotype_id'],
+            'targetFromSourceId': row['gene_from_pgkb']
+        })
     return evidence_string
 
 

@@ -8,12 +8,14 @@ export DATA_DIR=<directory for data>
 wget https://api.pharmgkb.org/v1/download/file/data/clinicalAnnotations.zip
 wget https://api.pharmgkb.org/v1/download/file/data/drugs.zip
 wget https://api.pharmgkb.org/v1/download/file/data/variants.zip
+wget https://api.pharmgkb.org/v1/download/file/data/relationships.zip
 
 unzip -j clinicalAnnotations.zip "*.tsv" -d $DATA_DIR
 unzip -j clinicalAnnotations.zip "CREATED*.txt" -d $DATA_DIR
 unzip -j drugs.zip "*.tsv" -d $DATA_DIR
 unzip -j variants.zip "*.tsv" -d $DATA_DIR
-rm clinicalAnnotations.zip drugs.zip variants.zip
+unzip -j relationships.zip "*.tsv" -d $DATA_DIR
+rm clinicalAnnotations.zip drugs.zip variants.zip relationships.zip
 
 # Run pipeline
 generate_evidence.py --data-dir $DATA_DIR --fasta <path to fasta> --created-date <created date> --output-path evidence.json
@@ -34,11 +36,14 @@ literature | List of PMIDs associated with this clinical annotation | `["1138948
 genotypeId | VCF-style (`chr_pos_ref_allele1,allele2`) identifier of genotype; computed as described [below](#variant-coordinate-computation) | `"19_38499645_GGAG_G,GGAG"`
 variantRsId | RS ID of variant | `"rs121918596"`
 variantFunctionalConsequenceId | Sequence Ontology term, from VEP | `"SO_0001822"`
-targetFromSourceId | Ensembl stable gene ID, from VEP | `"ENSG00000196218"`
-genotype | Genotype string | SNP `"TA"`, indel `"del/GAG"`, repeat `"(CA)16/(CA)17"`
-genotypeAnnotationText | Full annotation string for genotype | `"Patients with the rs121918596 del/GAG genotype may develop malignant hyperthermia when treated with volatile anesthetics [...]"`
+targetFromSourceId | Ensembl stable gene ID, from VEP (rsIDs) or PGKB mapped through BioMart (named alleles) | `"ENSG00000196218"`
+genotype | Genotype or allele string | SNP `"TA"`, indel `"del/GAG"`, repeat `"(CA)16/(CA)17"`, named allele `"*6"`
+genotypeAnnotationText | Full annotation string for genotype or allele | `"Patients with the rs121918596 del/GAG genotype may develop malignant hyperthermia when treated with volatile anesthetics [...]"`
+directionality | Allele function annotation (see Table 2 [here](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5253119/)) | `"Decreased function"`
+haplotypeId | Name of haplotype; can be an allele or a genotype | `"CYP2B6*6"` or `"GSTT1 non-null/non-null"`
+haplotypeFromSourceId | Internal PGKB identifier for the haplotype | `"PA165818762"`
 drugFromSource | Drug name | `"succinylcholine"`
-drugId | CHEBI ID of drug, mapped through OLS | `"CHEBI_45652"`
+drugFromSourceId | CHEBI ID of drug, mapped through OLS | `"CHEBI_45652"`
 pgxCategory | Pharmacogenomics phenotype category | `"toxicity"`
 phenotypeText | Phenotype name | `"Malignant Hyperthermia"`
 phenotypeFromSourceId | EFO ID of phenotype, mapped through ZOOMA / OXO | `"Orphanet_423"`

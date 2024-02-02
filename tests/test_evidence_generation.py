@@ -6,7 +6,7 @@ import pytest
 
 from opentargets_pharmgkb import evidence_generation
 from opentargets_pharmgkb.evidence_generation import get_functional_consequences, explode_and_map_drugs, \
-    read_tsv_to_df, explode_and_map_genes, get_genotype_ids
+    read_tsv_to_df, explode_and_map_genes, get_genotype_ids, get_haplotype_ids
 from tests.conftest import fasta_path
 
 resources_dir = os.path.join(os.path.dirname(__file__), 'resources')
@@ -24,6 +24,26 @@ def test_get_genotype_ids():
         '21_33341701_G_G,T',
         '21_33341701_G_A,G',
         '21_33341701_G_A,T'}
+
+
+def test_get_haplotype_ids():
+    relationships_table = read_tsv_to_df(os.path.join(resources_dir, 'relationships.tsv'))
+    df = pd.DataFrame(columns=['Gene', 'Genotype/Allele'],
+                      data=[['CYP2D6', '*1'],
+                            ['CYP2D6', '*1xN'],
+                            ['G6PD', 'A- 202A_376G'],
+                            ['G6PD', 'Mediterranean, Dallas, Panama, Sassari, Cagliari, Birmingham'],
+                            ['GSTT1', 'null/non-null'],
+                            [None, '*1'],
+                            ['G6PD;GSTT1', '*1']])
+    annotated_df = get_haplotype_ids(df, relationships_table)
+    assert set(annotated_df['haplotype_id'].values) == {
+        'CYP2D6*1',
+        'CYP2D6*1xN',
+        'G6PD A- 202A_376G',
+        'G6PD Mediterranean, Dallas, Panama, Sassari, Cagliari, Birmingham',
+        'GSTT1 null/non-null'}
+    assert set(annotated_df['pgkb_haplotype_id'].values) == {'PA165988479', 'PA165947827', 'PA166121127', None}
 
 
 def test_get_functional_consequences():
