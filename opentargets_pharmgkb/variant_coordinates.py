@@ -3,30 +3,9 @@ from functools import lru_cache
 import re
 
 import pandas as pd
-import requests
 from Bio import SeqIO
 
 logger = logging.getLogger(__package__)
-
-
-@lru_cache
-def get_chrom_pos_for_rs_from_ensembl(rsid):
-    """Queries Ensembl for chromosome and position of rsid. Returns None if not found."""
-    if not rsid.startswith('rs'):
-        rsid = f'rs{rsid}'
-    ensembl_url = f'https://rest.ensembl.org/variation/human/{rsid}?content-type=application/json'
-    resp = requests.get(ensembl_url)
-    data = resp.json()
-    if 'mappings' in data:
-        for mapping in data['mappings']:
-            if mapping['assembly_name'] == 'GRCh38':
-                chrom = mapping['seq_region_name']
-                # Skip things like CHR_HSCHR22_1_CTG7
-                if '_' in chrom:
-                    continue
-                pos = mapping['start']
-                return chrom, pos
-    return None, None
 
 
 def parse_genotype(genotype_string):
@@ -90,6 +69,7 @@ class Fasta:
         else:
             start = end = int(pos)
 
+        # TODO replace this with normalisation
         alleles_dict = {alt: alt for genotype in all_parsed_genotypes for alt in genotype}
         # Correct for deletion alleles
         if 'DEL' in alleles_dict:
@@ -104,11 +84,9 @@ class Fasta:
 
         ref = self.get_ref_from_fasta(chrom, start, end)
         # Report & skip if ref is not among the alleles
-        # TODO we can now support cases where ref is truly not among the annotated genotypes, but we can't distinguish
-        #  this situation from cases where the reference or location is wrong for some reason.
         if ref not in alleles_dict.values():
             logger.warning(f'Ref not in alleles: {rsid}\t{ref}\t{",".join(alleles_dict)}')
-            return chrom_num, start, None, None
+            return chrom_num, start, None, None  # TODO return normalised alleles in this case
 
         return chrom_num, start, ref, alleles_dict
 
@@ -141,3 +119,36 @@ class Fasta:
             return m.group(1)
         logger.warning(f'Could not get chromosome number for {chrom_refseq}')
         return None
+
+    @lru_cache
+    def normalise(self, chrom, pos, alleles):
+        """
+        Normalise alleles to be parsimonious and left-aligned.
+        See here: https://genome.sph.umich.edu/wiki/Variant_Normalization
+
+        :param chrom: chromosome (RefSeq)
+        :param pos: position
+        :param alleles: list of alleles to normalise
+        :return: chromosome, normalised position, and list of normalised alleles (guaranteed to preserve input order)
+        """
+        # while no empty alleles and all end in same nucleotide
+        while all(len(a) > 0 for a in alleles) and (len(set(a[-1] for a in alleles)) == 1):
+            # truncate rightmost nucleotide
+            alleles = [a[:-1] for a in alleles]
+            # if exists an empty allele
+            if any(len(a) == 0 for a in alleles):
+                # extend alleles 1 to the left
+                alleles = [self.add_context_base(chrom, pos, a) for a in alleles]
+                pos -= 1
+        # while all start with same nucleotide and have length 2 or more
+        while (len(set(a[0] for a in alleles)) == 1) and all(len(a) >= 2 for a in alleles):
+            # truncate leftmost nucleotide
+            alleles = [a[1:] for a in alleles]
+            pos += 1
+        return chrom, pos, alleles
+
+    @lru_cache
+    def normalise_with_ref(self, chrom, pos, ref, alts):
+        """Normalisation where reference allele is known."""
+        chrom, pos, alleles = self.normalise(chrom, pos, [ref] + [a for a in alts])
+        return chrom, pos, alleles[0], alleles[1:]
