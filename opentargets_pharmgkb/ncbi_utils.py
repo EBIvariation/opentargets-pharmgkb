@@ -31,14 +31,14 @@ def get_rsid_summaries(rsids, api_key=None):
     return {}
 
 
-def parse_spdi_from_ncbi_result(ncbi_result):
+def parse_spdi_from_ncbi_result(spdi_result):
     """
     Parse SPDI expressions from NCBI result.
 
-    :param ncbi_result: dict response from NCBI summary endpoint for a single rsID
+    :param spdi_result: SPDI string returned from NCBI
     :return: SPDI coords (chrom, pos, ref, list of alts)
     """
-    spdis = ncbi_result['spdi'].split(',')
+    spdis = spdi_result.split(',')
     # Parse each SPDI into coordinates
     chrom = pos = ref = None
     alts = []
@@ -46,23 +46,23 @@ def parse_spdi_from_ncbi_result(ncbi_result):
         # TODO warn or something if chrom/pos/ref differs among these
         chrom, pos, ref, alt = spdi.split(':')
         alts.append(alt)
-    return chrom, pos, ref, alts
+    return chrom, int(pos), ref, alts
 
 
 def get_spdi_coords_for_rsid(rsid):
     """
     Return SPDI coordinates for a single rsIDs by querying NCBI.
 
-    :param rsid:
-    :return: dict mapping rsid to SPDI coords as tuple (chrom, pos, ref, list of alts)
+    :param rsid: rsID to query
+    :return: SPDI coords as tuple (chrom, pos, ref, list of alts)
     """
     if rsid.startswith('rs'):
         rsid = rsid[2:]
     summary_result = get_rsid_summaries([rsid])
-    if rsid not in summary_result:
+    if rsid not in summary_result or 'spdi' not in summary_result[rsid]:
         logger.warning(f'Could not get SPDI from NCBI for rs{rsid}')
         return None, None, None, []
-    return parse_spdi_from_ncbi_result(summary_result[rsid])
+    return parse_spdi_from_ncbi_result(summary_result[rsid]['spdi'])
 
 
 def get_spdi_coords_for_rsids(rsids):
@@ -77,7 +77,8 @@ def get_spdi_coords_for_rsids(rsids):
     rsid_to_spdis = {}
     for k in summary_results:
         rsid = f'rs{k}'
-        rsid_to_spdis[rsid] = parse_spdi_from_ncbi_result(summary_results[k])
+        if 'spdi' in summary_results[k]:
+            rsid_to_spdis[rsid] = parse_spdi_from_ncbi_result(summary_results[k]['spdi'])
     if set(rsids) != set(rsid_to_spdis.keys()):
         logger.warning('Did not get SPDI from NCBI for all rsids')
     return rsid_to_spdis

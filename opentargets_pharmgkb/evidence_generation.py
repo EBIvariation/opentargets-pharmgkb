@@ -145,7 +145,6 @@ def get_genotype_ids(df, fasta_path, counts=None):
     for i, row in df_with_ids.drop_duplicates(['Variant/Haplotypes']).iterrows():
         chrom, pos, ref, alleles_dict = fasta.get_chr_pos_ref(row['Variant/Haplotypes'], row['Location'],
                                                               row['all_genotypes'])
-        # TODO - here fallback on NCBI SPDI method
         rs_to_coords[row['Variant/Haplotypes']] = (chrom, pos, ref, alleles_dict)
         # Generate per-variant counts, if applicable
         if not counts:

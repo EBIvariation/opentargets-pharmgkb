@@ -5,6 +5,8 @@ import re
 import pandas as pd
 from Bio import SeqIO
 
+from opentargets_pharmgkb.ncbi_utils import get_spdi_coords_for_rsid
+
 logger = logging.getLogger(__package__)
 
 
@@ -69,9 +71,8 @@ class Fasta:
         else:
             start = end = int(pos)
 
-        # TODO replace this with normalisation
         alleles_dict = {alt: alt for genotype in all_parsed_genotypes for alt in genotype}
-        # Correct for deletion alleles
+        # Add context base for deletion alleles
         if 'DEL' in alleles_dict:
             if end == start:
                 end -= 1  # keep end == start if they began that way
@@ -81,14 +82,38 @@ class Fasta:
         if not alleles_dict:
             logger.warning(f'Could not parse any genotypes for {rsid}')
             return chrom_num, start, None, None
+        pgkb_alleles = alleles_dict.values()
 
+        # First check for ref based on PGKB's coordinates
         ref = self.get_ref_from_fasta(chrom, start, end)
-        # Report & skip if ref is not among the alleles
-        if ref not in alleles_dict.values():
-            logger.warning(f'Ref not in alleles: {rsid}\t{ref}\t{",".join(alleles_dict)}')
-            return chrom_num, start, None, None  # TODO return normalised alleles in this case
+        if ref in pgkb_alleles:
+            return chrom_num, start, ref, alleles_dict
 
-        return chrom_num, start, ref, alleles_dict
+        logger.info(f'Ref from FASTA not in alleles: {rsid}\t{ref}\t{",".join(pgkb_alleles)}')
+        # If could not determine ref from FASTA, use ref determined from NCBI & normalised
+        chrom, pos, ref, alleles_dict = self.get_norm_coords_from_ncbi(rsid, alleles_dict)
+        logger.info(f'Will use ref from NCBI: {ref}')
+        # Use NCBI's chromosome, normalised position, and normalised reference
+        # (Note this could be inconsistent for DEL alleles if PGKB's position doesn't match NCBI's)
+        return self.get_chrom_num_from_refseq(chrom), pos, ref, alleles_dict
+
+    def get_norm_coords_from_ncbi(self, rsid, alleles_dict):
+        """
+        Get normalised coordinates from NCBI for an rsID, using alleles passed in.
+
+        :param rsid: rsID to query
+        :param alleles_dict: dict mapping PGKB's original alleles to alleles with context added
+        :return: normalised coordinates (chrom, pos, ref, alleles) where alleles is a dict with the same keys as passed
+            in but with normalised values
+        """
+        # Don't actually need the alts from SPDI, we only care about PGKB's alleles
+        chrom, pos, ref, _ = get_spdi_coords_for_rsid(rsid)
+        # Need to normalise values of alleles_dict while keeping track of their associated keys,
+        # for simplicity we do this by preserving order.
+        ordered_keys = list(alleles_dict.keys())
+        alts = [alleles_dict[k] for k in ordered_keys]
+        chrom, norm_pos, norm_ref, norm_alts = self.normalise_with_ref(chrom, pos, ref, alts)
+        return chrom, norm_pos, norm_ref, dict(zip(ordered_keys, norm_alts))
 
     @lru_cache
     def get_ref_from_fasta(self, chrom, start, end=None):
@@ -120,7 +145,6 @@ class Fasta:
         logger.warning(f'Could not get chromosome number for {chrom_refseq}')
         return None
 
-    @lru_cache
     def normalise(self, chrom, pos, alleles):
         """
         Normalise alleles to be parsimonious and left-aligned.
@@ -147,8 +171,7 @@ class Fasta:
             pos += 1
         return chrom, pos, alleles
 
-    @lru_cache
     def normalise_with_ref(self, chrom, pos, ref, alts):
         """Normalisation where reference allele is known."""
-        chrom, pos, alleles = self.normalise(chrom, pos, [ref] + [a for a in alts])
+        chrom, pos, alleles = self.normalise(chrom, pos, [ref] + list(alts))
         return chrom, pos, alleles[0], alleles[1:]
