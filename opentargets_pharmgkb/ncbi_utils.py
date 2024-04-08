@@ -39,14 +39,20 @@ def parse_spdi_from_ncbi_result(spdi_result):
     :return: SPDI coords (chrom, pos, ref, list of alts)
     """
     spdis = spdi_result.split(',')
-    # Parse each SPDI into coordinates
-    chrom = pos = ref = None
+    chrom_set = set()
+    pos_set = set()
+    ref_set = set()
     alts = []
+    # Parse each SPDI into coordinates
     for spdi in spdis:
-        # TODO warn or something if chrom/pos/ref differs among these
         chrom, pos, ref, alt = spdi.split(':')
+        chrom_set.add(chrom)
+        pos_set.add(pos)
+        ref_set.add(ref)
         alts.append(alt)
-    return chrom, int(pos), ref, alts
+    if len(chrom_set) > 1 or len(pos_set) > 1 or len(ref_set) > 1:
+        logger.warning(f'Unexpected multiples found in SPDIs: {",".join(s for s in spdis)}')
+    return chrom_set.pop(), int(pos_set.pop()), ref_set.pop(), alts
 
 
 def get_spdi_coords_for_rsid(rsid):
