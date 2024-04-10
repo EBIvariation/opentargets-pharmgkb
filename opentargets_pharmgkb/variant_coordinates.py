@@ -73,6 +73,7 @@ class Fasta:
 
         alleles_dict = {alt: alt for genotype in all_parsed_genotypes for alt in genotype}
         # Add context base for deletion alleles
+        # This is the only normalisation needed for PGKB alleles, plus bookkeeping for the start/end coordinates
         if 'DEL' in alleles_dict:
             if end == start:
                 end -= 1  # keep end == start if they began that way
@@ -89,31 +90,23 @@ class Fasta:
         if ref in pgkb_alleles:
             return chrom_num, start, ref, alleles_dict
 
-        logger.info(f'Ref from FASTA not in alleles: {rsid}\t{ref}\t{",".join(pgkb_alleles)}')
         # If could not determine ref from FASTA, use ref determined from NCBI & normalised
-        chrom, pos, ref, alleles_dict = self.get_norm_coords_from_ncbi(rsid, alleles_dict)
+        logger.info(f'Ref from FASTA not in alleles: {rsid}\t{ref}\t{",".join(pgkb_alleles)}')
+        chrom, pos, ref = self.get_norm_coords_from_ncbi(rsid)
         logger.info(f'Will use ref from NCBI: {ref}')
-        # Use NCBI's chromosome, normalised position, and normalised reference
-        # (Note this could be inconsistent for DEL alleles if PGKB's position doesn't match NCBI's)
-        return self.get_chrom_num_from_refseq(chrom), pos, ref, alleles_dict
+        return chrom_num, pos, ref, alleles_dict
 
-    def get_norm_coords_from_ncbi(self, rsid, alleles_dict):
+    def get_norm_coords_from_ncbi(self, rsid):
         """
-        Get normalised coordinates from NCBI for an rsID, using alleles passed in.
+        Get normalised coordinates from NCBI for an rsID.
 
         :param rsid: rsID to query
-        :param alleles_dict: dict mapping PGKB's original alleles to alleles with context added
-        :return: normalised coordinates (chrom, pos, ref, alleles) where alleles is a dict with the same keys as passed
-            in but with normalised values
+        :return: normalised coordinates (chrom, pos, ref)
         """
-        # Don't actually need the alts from SPDI, we only care about PGKB's alleles
-        chrom, pos, ref, _ = get_spdi_coords_for_rsid(rsid)
-        # Need to normalise values of alleles_dict while keeping track of their associated keys,
-        # for simplicity we do this by preserving order.
-        ordered_keys = list(alleles_dict.keys())
-        alts = [alleles_dict[k] for k in ordered_keys]
+        chrom, pos, ref, alts = get_spdi_coords_for_rsid(rsid)
         chrom, norm_pos, norm_ref, norm_alts = self.normalise_with_ref(chrom, pos, ref, alts)
-        return chrom, norm_pos, norm_ref, dict(zip(ordered_keys, norm_alts))
+        # Don't actually need the alts from SPDI
+        return chrom, norm_pos, norm_ref
 
     @lru_cache
     def get_ref_from_fasta(self, chrom, start, end=None):
@@ -155,15 +148,20 @@ class Fasta:
         :param alleles: list of alleles to normalise
         :return: chromosome, normalised position, and list of normalised alleles (guaranteed to preserve input order)
         """
-        # while no empty alleles and all end in same nucleotide
-        while all(len(a) > 0 for a in alleles) and (len(set(a[-1] for a in alleles)) == 1):
+        # allow for initially empty alleles
+        if any(len(a) == 0 for a in alleles):
+            # extend alleles 1 to the left
+            pos -= 1
+            alleles = [self.add_context_base(chrom, pos, a) for a in alleles]
+        # while all alleles end in same nucleotide
+        while (len(set(a[-1] for a in alleles)) == 1):
             # truncate rightmost nucleotide
             alleles = [a[:-1] for a in alleles]
             # if exists an empty allele
             if any(len(a) == 0 for a in alleles):
                 # extend alleles 1 to the left
-                alleles = [self.add_context_base(chrom, pos, a) for a in alleles]
                 pos -= 1
+                alleles = [self.add_context_base(chrom, pos, a) for a in alleles]
         # while all start with same nucleotide and have length 2 or more
         while (len(set(a[0] for a in alleles)) == 1) and all(len(a) >= 2 for a in alleles):
             # truncate leftmost nucleotide
