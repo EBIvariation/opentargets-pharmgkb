@@ -38,14 +38,14 @@ def test_get_coordinates_not_match_reference_snp(fasta: Fasta):
         'rs1051266',
         'NC_000021.9:45537880',
         [['C', 'C'], ['C', 'G'], ['G', 'G']]
-    ) == ('21', 45537879, 'T', {'C': 'C', 'G': 'G'})
+    ) == ('21', 45537880, 'T', {'C': 'C', 'G': 'G'})
 
 
 def test_get_coordinates_not_match_reference_del(fasta: Fasta):
     # Deletion
     # Mock NCBI response, so we can simulate an exact scenario on chr21 without searching for the right RS
     with patch('opentargets_pharmgkb.variant_coordinates.get_spdi_coords_for_rsid') as m_spdi_coords:
-        m_spdi_coords.return_value = ('NC_000021.9', 45537880, 'TGCTGC', ['TGC'])
+        m_spdi_coords.return_value = ('NC_000021.9', 45537879, 'TGCTGC', ['TGC'])
         result = fasta.get_chr_pos_ref(
             'rs1051266',
             'NC_000021.9:45537880_45537885',

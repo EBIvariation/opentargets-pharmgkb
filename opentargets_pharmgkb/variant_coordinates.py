@@ -104,6 +104,8 @@ class Fasta:
         :return: normalised coordinates (chrom, pos, ref)
         """
         chrom, pos, ref, alts = get_spdi_coords_for_rsid(rsid)
+        # Add 1 to position to be compatible with VCF coordinates
+        pos += 1
         chrom, norm_pos, norm_ref, norm_alts = self.normalise_with_ref(chrom, pos, ref, alts)
         # Don't actually need the alts from SPDI
         return chrom, norm_pos, norm_ref
