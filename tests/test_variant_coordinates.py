@@ -62,3 +62,6 @@ def test_normalise(fasta: Fasta):
     assert fasta.normalise('NC_000021.9', 7678489, ['ATTTATTT', 'ATTT']) == ('NC_000021.9', 7678481, ['TTTTA', 'T'])
     # Same variant with different representation (empty allele)
     assert fasta.normalise('NC_000021.9', 7678489, ['ATTT', '']) == ('NC_000021.9', 7678481, ['TTTTA', 'T'])
+    # Multiple alternate alleles
+    assert fasta.normalise('NC_000021.9', 7678489, ['ATTTATTT', 'ATTT', 'ATTTATTTATTT']) \
+           == ('NC_000021.9', 7678481, ['TTTTA', 'T', 'TTTTATTTA'])
