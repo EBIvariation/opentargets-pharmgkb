@@ -25,7 +25,7 @@ logger.setLevel(level=logging.DEBUG)
 ID_COL_NAME = 'Clinical Annotation ID'
 
 
-def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
+def pipeline(data_dir, fasta_path, created_date, output_path):
     clinical_annot_path = os.path.join(data_dir, 'clinical_annotations.tsv')
     clinical_alleles_path = os.path.join(data_dir, 'clinical_ann_alleles.tsv')
     clinical_evidence_path = os.path.join(data_dir, 'clinical_ann_evidence.tsv')
@@ -108,11 +108,6 @@ def pipeline(data_dir, fasta_path, created_date, output_path, debug_path=None):
                 invalid_evidence = True
 
     # Final count report
-    # NB. gene comparison conflicts with named allele processing,
-    #  restore if needed for https://github.com/EBIvariation/opentargets-pharmgkb/issues/21
-    # if not debug_path:
-    #     debug_path = f'{output_path.rsplit(".", 1)[0]}_genes.csv'
-    # gene_comparison_counts(evidence_table, counts, debug_path=debug_path)
     counts.report()
 
     # Exit with an error code if any invalid evidence is produced

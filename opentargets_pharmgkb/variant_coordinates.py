@@ -3,30 +3,11 @@ from functools import lru_cache
 import re
 
 import pandas as pd
-import requests
 from Bio import SeqIO
 
+from opentargets_pharmgkb.ncbi_utils import get_spdi_coords_for_rsid
+
 logger = logging.getLogger(__package__)
-
-
-@lru_cache
-def get_chrom_pos_for_rs_from_ensembl(rsid):
-    """Queries Ensembl for chromosome and position of rsid. Returns None if not found."""
-    if not rsid.startswith('rs'):
-        rsid = f'rs{rsid}'
-    ensembl_url = f'https://rest.ensembl.org/variation/human/{rsid}?content-type=application/json'
-    resp = requests.get(ensembl_url)
-    data = resp.json()
-    if 'mappings' in data:
-        for mapping in data['mappings']:
-            if mapping['assembly_name'] == 'GRCh38':
-                chrom = mapping['seq_region_name']
-                # Skip things like CHR_HSCHR22_1_CTG7
-                if '_' in chrom:
-                    continue
-                pos = mapping['start']
-                return chrom, pos
-    return None, None
 
 
 def parse_genotype(genotype_string):
@@ -91,7 +72,8 @@ class Fasta:
             start = end = int(pos)
 
         alleles_dict = {alt: alt for genotype in all_parsed_genotypes for alt in genotype}
-        # Correct for deletion alleles
+        # Add context base for deletion alleles
+        # This is the only normalisation needed for PGKB alleles, plus bookkeeping for the start/end coordinates
         if 'DEL' in alleles_dict:
             if end == start:
                 end -= 1  # keep end == start if they began that way
@@ -101,16 +83,32 @@ class Fasta:
         if not alleles_dict:
             logger.warning(f'Could not parse any genotypes for {rsid}')
             return chrom_num, start, None, None
+        pgkb_alleles = alleles_dict.values()
 
+        # First check for ref based on PGKB's coordinates
         ref = self.get_ref_from_fasta(chrom, start, end)
-        # Report & skip if ref is not among the alleles
-        # TODO we can now support cases where ref is truly not among the annotated genotypes, but we can't distinguish
-        #  this situation from cases where the reference or location is wrong for some reason.
-        if ref not in alleles_dict.values():
-            logger.warning(f'Ref not in alleles: {rsid}\t{ref}\t{",".join(alleles_dict)}')
-            return chrom_num, start, None, None
+        if ref in pgkb_alleles:
+            return chrom_num, start, ref, alleles_dict
 
-        return chrom_num, start, ref, alleles_dict
+        # If could not determine ref from FASTA, use ref determined from NCBI & normalised
+        logger.info(f'Ref from FASTA not in alleles: {rsid}\t{ref}\t{",".join(pgkb_alleles)}')
+        chrom, pos, ref = self.get_norm_coords_from_ncbi(rsid)
+        logger.info(f'Will use ref from NCBI: {ref}')
+        return chrom_num, pos, ref, alleles_dict
+
+    def get_norm_coords_from_ncbi(self, rsid):
+        """
+        Get normalised coordinates from NCBI for an rsID.
+
+        :param rsid: rsID to query
+        :return: normalised coordinates (chrom, pos, ref)
+        """
+        chrom, pos, ref, alts = get_spdi_coords_for_rsid(rsid)
+        # Add 1 to position to be compatible with VCF coordinates
+        pos += 1
+        chrom, norm_pos, norm_ref, norm_alts = self.normalise_with_ref(chrom, pos, ref, alts)
+        # Don't actually need the alts from SPDI
+        return chrom, norm_pos, norm_ref
 
     @lru_cache
     def get_ref_from_fasta(self, chrom, start, end=None):
@@ -141,3 +139,39 @@ class Fasta:
             return m.group(1)
         logger.warning(f'Could not get chromosome number for {chrom_refseq}')
         return None
+
+    def normalise(self, chrom, pos, alleles):
+        """
+        Normalise alleles to be parsimonious and left-aligned.
+        See here: https://genome.sph.umich.edu/wiki/Variant_Normalization
+
+        :param chrom: chromosome (RefSeq)
+        :param pos: position
+        :param alleles: list of alleles to normalise
+        :return: chromosome, normalised position, and list of normalised alleles (guaranteed to preserve input order)
+        """
+        # allow for initially empty alleles
+        if any(len(a) == 0 for a in alleles):
+            # extend alleles 1 to the left
+            pos -= 1
+            alleles = [self.add_context_base(chrom, pos, a) for a in alleles]
+        # while all alleles end in same nucleotide
+        while (len(set(a[-1] for a in alleles)) == 1):
+            # truncate rightmost nucleotide
+            alleles = [a[:-1] for a in alleles]
+            # if exists an empty allele
+            if any(len(a) == 0 for a in alleles):
+                # extend alleles 1 to the left
+                pos -= 1
+                alleles = [self.add_context_base(chrom, pos, a) for a in alleles]
+        # while all start with same nucleotide and have length 2 or more
+        while (len(set(a[0] for a in alleles)) == 1) and all(len(a) >= 2 for a in alleles):
+            # truncate leftmost nucleotide
+            alleles = [a[1:] for a in alleles]
+            pos += 1
+        return chrom, pos, alleles
+
+    def normalise_with_ref(self, chrom, pos, ref, alts):
+        """Normalisation where reference allele is known."""
+        chrom, pos, alleles = self.normalise(chrom, pos, [ref] + list(alts))
+        return chrom, pos, alleles[0], alleles[1:]

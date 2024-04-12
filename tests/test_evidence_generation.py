@@ -94,8 +94,7 @@ def test_pipeline():
         data_dir=resources_dir,
         fasta_path=fasta_path,
         created_date='2023-03-23',
-        output_path=output_path,
-        debug_path=f'{output_path}.csv'
+        output_path=output_path
     )
 
     with open(output_path) as test_output, open(expected_path) as expected_output:
@@ -103,8 +102,6 @@ def test_pipeline():
 
     if os.path.exists(output_path):
         os.remove(output_path)
-    if os.path.exists(f'{output_path}.csv'):
-        os.remove(f'{output_path}.csv')
 
 
 def test_pipeline_missing_file():
