@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from opentargets_pharmgkb import evidence_generation
-from opentargets_pharmgkb.evidence_generation import get_functional_consequences, explode_and_map_drugs, \
+from opentargets_pharmgkb.evidence_generation import get_functional_consequences, explode_drugs, \
     read_tsv_to_df, explode_and_map_genes, get_genotype_ids, get_haplotype_ids
 from tests.conftest import fasta_path
 
@@ -67,15 +67,15 @@ def test_get_functional_consequences_ref_ref():
     assert 'no_sequence_alteration' in annotated_df['consequence_term'].values
 
 
-def test_explode_and_map_drugs():
-    drugs_table = read_tsv_to_df(os.path.join(resources_dir, 'drugs.tsv'))
-    df = pd.DataFrame(columns=['Drug(s)'], data=[['tamoxifen; fluorouracil'], ['peginterferon alfa-2a']])
-    annotated_df = explode_and_map_drugs(df, drugs_table)
-    assert annotated_df.shape[0] == 3
-    annotated_df = annotated_df.set_index('split_drug')
-    assert annotated_df.loc['tamoxifen']['chebi'] == 'http://purl.obolibrary.org/obo/CHEBI_41774'
-    assert annotated_df.loc['fluorouracil']['chebi'] == 'http://purl.obolibrary.org/obo/CHEBI_46345'
-    assert annotated_df.loc['peginterferon alfa-2a']['chebi'] is None
+def test_explode_drugs():
+    df = pd.DataFrame(columns=['Drug(s)'],
+                      data=[['tamoxifen; fluorouracil'], ['peginterferon alfa-2a'], ['ivacaftor / lumacaftor']])
+    annotated_df = explode_drugs(df)
+    assert annotated_df.shape == (4, 2)
+    annotated_df = annotated_df.set_index('Drug(s)')
+    assert len(annotated_df.loc['tamoxifen; fluorouracil']) == 2
+    assert len(annotated_df.loc['peginterferon alfa-2a']) == 1
+    assert len(annotated_df.loc['ivacaftor / lumacaftor']) == 1
 
 
 def test_explode_and_map_genes():
