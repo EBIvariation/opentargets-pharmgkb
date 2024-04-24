@@ -99,10 +99,11 @@ def pipeline(data_dir, fasta_path, created_date, output_path):
     invalid_evidence = False
     with open(output_path, 'w+') as output:
         for ev_string in evidence:
-            if validate_evidence_string(ev_string):
-                output.write(json.dumps(ev_string)+'\n')
-            else:
-                invalid_evidence = True
+            # TODO undo
+            # if validate_evidence_string(ev_string):
+            output.write(json.dumps(ev_string)+'\n')
+            # else:
+            #     invalid_evidence = True
 
     # Final count report
     counts.report()

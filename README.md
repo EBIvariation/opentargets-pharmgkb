@@ -6,13 +6,11 @@ Pipeline to provide evidence strings for Open Targets from PharmGKB
 # Download data
 export DATA_DIR=<directory for data>
 wget https://api.pharmgkb.org/v1/download/file/data/clinicalAnnotations.zip
-wget https://api.pharmgkb.org/v1/download/file/data/drugs.zip
 wget https://api.pharmgkb.org/v1/download/file/data/variants.zip
 wget https://api.pharmgkb.org/v1/download/file/data/relationships.zip
 
 unzip -j clinicalAnnotations.zip "*.tsv" -d $DATA_DIR
 unzip -j clinicalAnnotations.zip "CREATED*.txt" -d $DATA_DIR
-unzip -j drugs.zip "*.tsv" -d $DATA_DIR
 unzip -j variants.zip "*.tsv" -d $DATA_DIR
 unzip -j relationships.zip "*.tsv" -d $DATA_DIR
 rm clinicalAnnotations.zip drugs.zip variants.zip relationships.zip
@@ -42,8 +40,7 @@ genotypeAnnotationText | Full annotation string for genotype or allele | `"Patie
 directionality | Allele function annotation (see Table 2 [here](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5253119/)) | `"Decreased function"`
 haplotypeId | Name of haplotype; can be an allele or a genotype | `"CYP2B6*6"` or `"GSTT1 non-null/non-null"`
 haplotypeFromSourceId | Internal PGKB identifier for the haplotype | `"PA165818762"`
-drugFromSource | Drug name | `"succinylcholine"`
-drugFromSourceId | CHEBI ID of drug, mapped through OLS | `"CHEBI_45652"`
+drugsFromSource | List of drug names (if known to be annotated in combination) | `["succinylcholine"]` or `["ivacaftor", "lumacaftor"]`
 pgxCategory | Pharmacogenomics phenotype category | `"toxicity"`
 phenotypeText | Phenotype name | `"Malignant Hyperthermia"`
 phenotypeFromSourceId | EFO ID of phenotype, mapped through ZOOMA / OXO | `"Orphanet_423"`
@@ -67,8 +64,9 @@ Below is an example of a complete clinical annotation evidence string:
   "targetFromSourceId": "ENSG00000196218",
   "genotype": "del/GAG",
   "genotypeAnnotationText": "Patients with the rs121918596 del/GAG genotype may develop malignant hyperthermia when treated with volatile anesthetics (desflurane, enflurane, halothane, isoflurane, methoxyflurane, sevoflurane) and/or succinylcholine as compared to patients with the GAG/GAG genotype. Other genetic or clinical factors may also influence the risk for malignant hyperthermia.",
-  "drugFromSource": "succinylcholine",
-  "drugId": "CHEBI_45652",
+  "drugsFromSource": [
+    "succinylcholine"
+  ],
   "pgxCategory": "toxicity",
   "phenotypeText": "Malignant Hyperthermia",
   "phenotypeFromSourceId": "Orphanet_423"
