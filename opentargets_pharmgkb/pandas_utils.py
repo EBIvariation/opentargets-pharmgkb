@@ -10,7 +10,7 @@ def none_to_nan(x):
     return np.nan if x is None else x
 
 
-def explode_column(df, source_col, target_col, sep=';', split_only=False):
+def split_and_explode_column(df, source_col, target_col, sep=';', split_only=False):
     """
     Splits a string-valued column in dataframe and explodes on the values, storing them in the specified target column.
     Any white space around the separator will be stripped.

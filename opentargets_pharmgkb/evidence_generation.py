@@ -14,7 +14,7 @@ from cmat.output_generation.consequence_type import get_so_accession_dict
 
 from opentargets_pharmgkb.counts import ClinicalAnnotationCounts
 from opentargets_pharmgkb.ontology_apis import get_efo_iri
-from opentargets_pharmgkb.pandas_utils import none_to_nan, explode_column, read_tsv_to_df
+from opentargets_pharmgkb.pandas_utils import none_to_nan, split_and_explode_column, read_tsv_to_df
 from opentargets_pharmgkb.validation import validate_evidence_string
 from opentargets_pharmgkb.variant_coordinates import Fasta, parse_genotype
 
@@ -53,7 +53,7 @@ def pipeline(data_dir, fasta_path, created_date, output_path):
     merged_with_alleles_table = pd.merge(merged_with_variants_table, clinical_alleles_table, on=ID_COL_NAME, how='left')
     counts.exploded_alleles = len(merged_with_alleles_table)
 
-    exploded_pgx_cat = explode_column(merged_with_alleles_table, 'Phenotype Category', 'split_pgx_category')
+    exploded_pgx_cat = split_and_explode_column(merged_with_alleles_table, 'Phenotype Category', 'split_pgx_category')
     counts.exploded_pgx_cat = len(exploded_pgx_cat)
 
     mapped_drugs = explode_drugs(exploded_pgx_cat)
@@ -281,7 +281,7 @@ def explode_and_map_genes(df):
     :param df: dataframe to annotate (should have a 'Gene' column)
     :return: dataframe with 'ensembl_gene_id' column added
     """
-    split_genes = explode_column(df, 'Gene', 'split_gene')
+    split_genes = split_and_explode_column(df, 'Gene', 'split_gene')
     ensembl_ids = query_biomart(
         ('hgnc_symbol', 'split_gene'),
         [('ensembl_gene_id', 'gene_from_pgkb')],
@@ -301,9 +301,9 @@ def explode_drugs(df):
     :return: dataframe with 'split_drug' column added
     """
     # Drugs on same row but not explicitly annotated as combinations
-    split_drugs = explode_column(df, 'Drug(s)', 'split_drug')
+    split_drugs = split_and_explode_column(df, 'Drug(s)', 'split_drug')
     # Drugs explicitly annotated as combinations are kept as a list of drug names
-    split_drugs = explode_column(split_drugs, 'split_drug', 'split_drug', sep='/', split_only=True)
+    split_drugs = split_and_explode_column(split_drugs, 'split_drug', 'split_drug', sep='/', split_only=True)
     return split_drugs
 
 
@@ -315,7 +315,7 @@ def explode_and_map_phenotypes(df):
     :return: dataframe with 'efo' column added
     """
     df['Phenotype(s)'].fillna('', inplace=True)
-    split_phenotypes = explode_column(df, 'Phenotype(s)', 'split_phenotype')
+    split_phenotypes = split_and_explode_column(df, 'Phenotype(s)', 'split_phenotype')
     with multiprocessing.Pool(processes=24) as pool:
         str_to_iri = {
             s: pool.apply(get_efo_iri, args=(s,))

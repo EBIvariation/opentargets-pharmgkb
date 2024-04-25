@@ -1,10 +1,10 @@
 import numpy as np
 import pandas as pd
 
-from opentargets_pharmgkb.pandas_utils import explode_column
+from opentargets_pharmgkb.pandas_utils import split_and_explode_column
 
 
-def test_explode_column():
+def test_split_and_explode_column():
     df = pd.DataFrame([
         [1, 'apple; pear; banana'],
         [2, 'cat;frog'],
@@ -21,12 +21,12 @@ def test_explode_column():
         [3, 'something', 'something'],
         [4, np.nan, np.nan]
     ], columns=['A', 'B', 'C'])
-    result = explode_column(df, 'B', 'C')
+    result = split_and_explode_column(df, 'B', 'C')
 
     assert result.equals(expected)
 
 
-def test_explode_column_split_only():
+def test_split_and_explode_column_split_only():
     df = pd.DataFrame([
         [1, 'apple1;apple2 / pear / banana'],
         [2, 'cat/frog'],
@@ -40,6 +40,6 @@ def test_explode_column_split_only():
         [3, 'something', ['something']],
         [4, np.nan, np.nan]
     ], columns=['A', 'B', 'C'])
-    result = explode_column(df, 'B', 'C', sep='/', split_only=True)
+    result = split_and_explode_column(df, 'B', 'C', sep='/', split_only=True)
 
     assert result.equals(expected)
