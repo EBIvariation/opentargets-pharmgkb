@@ -302,7 +302,7 @@ def explode_drugs(df):
     """
     # Drugs on same row but not explicitly annotated as combinations
     split_drugs = explode_column(df, 'Drug(s)', 'split_drug')
-    # Drugs explicitly annotated as combinations
+    # Drugs explicitly annotated as combinations are kept as a list of drug names
     split_drugs = explode_column(split_drugs, 'split_drug', 'split_drug', sep='/', split_only=True)
     return split_drugs
 
