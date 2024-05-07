@@ -352,7 +352,7 @@ def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
         'directionality': row['Allele Function'],
 
         # PHENOTYPE ATTRIBUTES
-        'drugsFromSource': row['split_drug'],
+        'drugs': [{'drugFromSource': d} for d in row['split_drug']],
         'pgxCategory': row['split_pgx_category'].lower(),
         'phenotypeText': row['split_phenotype'],
         'phenotypeFromSourceId': iri_to_code(row['efo'])
