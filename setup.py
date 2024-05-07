@@ -10,7 +10,7 @@ def get_requires():
 
 
 setup(name='opentargets_pharmgkb',
-      version='0.0.2',
+      version='0.1.0',
       packages=find_packages(),
       package_data={
           'opentargets_pharmgkb': ['OT_SCHEMA_VERSION']
