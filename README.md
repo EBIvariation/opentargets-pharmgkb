@@ -13,7 +13,7 @@ unzip -j clinicalAnnotations.zip "*.tsv" -d $DATA_DIR
 unzip -j clinicalAnnotations.zip "CREATED*.txt" -d $DATA_DIR
 unzip -j variants.zip "*.tsv" -d $DATA_DIR
 unzip -j relationships.zip "*.tsv" -d $DATA_DIR
-rm clinicalAnnotations.zip drugs.zip variants.zip relationships.zip
+rm clinicalAnnotations.zip variants.zip relationships.zip
 
 # Run pipeline
 generate_evidence.py --data-dir $DATA_DIR --fasta <path to fasta> --created-date <created date> --output-path evidence.json
