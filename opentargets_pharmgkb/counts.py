@@ -20,16 +20,11 @@ class ClinicalAnnotationCounts:
         self.exploded_phenotypes = 0
         # Output counts (after annotation and exploding)
         self.evidence_strings = 0
-        self.with_chebi = 0
         self.with_efo = 0
         self.with_consequence = 0
         self.with_target_gene = 0
         self.with_haplotype = 0
         self.resolved_haplotype_id = 0  # indicates we were able to resolve the haplotype to a PGKB internal ID
-        # Evaluation counts - after annotation but without exploding
-        self.annot_with_pgkb_genes = 0
-        self.annot_with_vep_genes = 0
-        self.pgkb_vep_gene_diff = 0
         # Variant counts
         self.total_rs = 0
         self.rs_with_alleles = 0
@@ -47,21 +42,12 @@ class ClinicalAnnotationCounts:
         report_str += (f'\t\t4. Exploded by phenotype: {self.exploded_phenotypes}'
                        f' ({format_decimal(self.exploded_phenotypes, self.exploded_drugs)}x)\n')
         report_str += f'Total evidence strings: {self.evidence_strings}\n'
-        report_str += f'\tWith CHEBI: {self.with_chebi} ({format_percent(self.with_chebi, self.evidence_strings)})\n'
         report_str += (f'\tWith EFO phenotype: {self.with_efo}'
                        f' ({format_percent(self.with_efo, self.evidence_strings)})\n')
         report_str += (f'\tWith functional consequence: {self.with_consequence} '
                        f'({format_percent(self.with_consequence, self.evidence_strings)})\n')
         report_str += (f'\tWith target gene: {self.with_target_gene} '
                        f'({format_percent(self.with_target_gene, self.evidence_strings)})\n')
-        if self.annot_with_pgkb_genes or self.annot_with_vep_genes:
-            report_str += f'Gene comparisons per annotation\n'
-            report_str += (f'\tWith PGKB genes: {self.annot_with_pgkb_genes} '
-                           f'({format_percent(self.annot_with_pgkb_genes, self.clinical_annotations)})\n')
-            report_str += (f'\tWith VEP genes: {self.annot_with_vep_genes} '
-                           f'({format_percent(self.annot_with_vep_genes, self.clinical_annotations)})\n')
-            report_str += (f'\tPGKB genes != VEP genes: {self.pgkb_vep_gene_diff} '
-                           f'({format_percent(self.pgkb_vep_gene_diff, self.clinical_annotations)})\n')
         report_str += f'Total RS: {self.total_rs}\n'
         report_str += (f'\tWith parsed alleles: {self.rs_with_alleles} '
                        f'({format_percent(self.rs_with_alleles, self.total_rs)})\n')

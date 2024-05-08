@@ -11,3 +11,4 @@ Clinical Annotation ID	Variant/Haplotypes	Gene	Level of Evidence	Level Override	
 1449566379	rs11065987		3			2.5	Efficacy;Metabolism/PK	1	1	hydrochlorothiazide	Hypertension	2021-03-24	https://www.pharmgkb.org/clinicalAnnotation/1449566379
 1448427588	GSTT1 non-null, GSTT1 null	GSTT1	3			2.75	Toxicity	1	1	clozapine		2021-03-24	https://www.pharmgkb.org/clinicalAnnotation/1448427588
 1183621000	G6PD A- 202A_376G, G6PD B (reference), G6PD Mediterranean, Dallas, Panama, Sassari, Cagliari, Birmingham	G6PD	1A		Tier 1 VIP	103.0	Toxicity	21	23	rasburicase	Hemolysis;Methemoglobinemia	2023-01-17	https://www.pharmgkb.org/clinicalAnnotation/1183621000	Pediatric
+1447979749	rs113993960	CFTR	1A		Rare Variant; Tier 1 VIP	123.375	Efficacy	11	16	ivacaftor / lumacaftor	Cystic Fibrosis	2021-03-24	https://www.pharmgkb.org/clinicalAnnotation/1447979749	Pediatric

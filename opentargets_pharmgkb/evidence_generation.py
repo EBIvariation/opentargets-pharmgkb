@@ -13,8 +13,8 @@ from cmat.consequence_prediction.snp_indel_variants.pipeline import process_vari
 from cmat.output_generation.consequence_type import get_so_accession_dict
 
 from opentargets_pharmgkb.counts import ClinicalAnnotationCounts
-from opentargets_pharmgkb.ontology_apis import get_chebi_iri, get_efo_iri
-from opentargets_pharmgkb.pandas_utils import none_to_nan, explode_column, read_tsv_to_df
+from opentargets_pharmgkb.ontology_apis import get_efo_iri
+from opentargets_pharmgkb.pandas_utils import none_to_nan, split_and_explode_column, read_tsv_to_df
 from opentargets_pharmgkb.validation import validate_evidence_string
 from opentargets_pharmgkb.variant_coordinates import Fasta, parse_genotype
 
@@ -30,9 +30,8 @@ def pipeline(data_dir, fasta_path, created_date, output_path):
     clinical_alleles_path = os.path.join(data_dir, 'clinical_ann_alleles.tsv')
     clinical_evidence_path = os.path.join(data_dir, 'clinical_ann_evidence.tsv')
     variants_path = os.path.join(data_dir, 'variants.tsv')
-    drugs_path = os.path.join(data_dir, 'drugs.tsv')
     relationships_path = os.path.join(data_dir, 'relationships.tsv')
-    for p in (clinical_annot_path, clinical_alleles_path, clinical_evidence_path, variants_path, drugs_path):
+    for p in (clinical_annot_path, clinical_alleles_path, clinical_evidence_path, variants_path):
         if not os.path.exists(p):
             logger.error(f'Missing required data file: {p}')
             raise ValueError(f'Missing required data file: {p}')
@@ -41,7 +40,6 @@ def pipeline(data_dir, fasta_path, created_date, output_path):
     clinical_alleles_table = read_tsv_to_df(clinical_alleles_path)
     clinical_evidence_table = read_tsv_to_df(clinical_evidence_path)
     variants_table = read_tsv_to_df(variants_path)
-    drugs_table = read_tsv_to_df(drugs_path)
     relationships_table = read_tsv_to_df(relationships_path)
 
     # Gather input counts
@@ -55,10 +53,10 @@ def pipeline(data_dir, fasta_path, created_date, output_path):
     merged_with_alleles_table = pd.merge(merged_with_variants_table, clinical_alleles_table, on=ID_COL_NAME, how='left')
     counts.exploded_alleles = len(merged_with_alleles_table)
 
-    exploded_pgx_cat = explode_column(merged_with_alleles_table, 'Phenotype Category', 'split_pgx_category')
+    exploded_pgx_cat = split_and_explode_column(merged_with_alleles_table, 'Phenotype Category', 'split_pgx_category')
     counts.exploded_pgx_cat = len(exploded_pgx_cat)
 
-    mapped_drugs = explode_and_map_drugs(exploded_pgx_cat, drugs_table)
+    mapped_drugs = explode_drugs(exploded_pgx_cat)
     counts.exploded_drugs = len(mapped_drugs)
 
     mapped_phenotypes = explode_and_map_phenotypes(mapped_drugs)
@@ -84,7 +82,6 @@ def pipeline(data_dir, fasta_path, created_date, output_path):
 
     # Gather output counts
     counts.evidence_strings = len(evidence_table)
-    counts.with_chebi = evidence_table['chebi'].count()
     counts.with_efo = evidence_table['efo'].count()
     counts.with_consequence = evidence_table['consequence_term'].count()
     counts.with_target_gene = evidence_table['overlapping_gene'].count() + evidence_table['gene_from_pgkb'].count()
@@ -284,7 +281,7 @@ def explode_and_map_genes(df):
     :param df: dataframe to annotate (should have a 'Gene' column)
     :return: dataframe with 'ensembl_gene_id' column added
     """
-    split_genes = explode_column(df, 'Gene', 'split_gene')
+    split_genes = split_and_explode_column(df, 'Gene', 'split_gene')
     ensembl_ids = query_biomart(
         ('hgnc_symbol', 'split_gene'),
         [('ensembl_gene_id', 'gene_from_pgkb')],
@@ -296,38 +293,18 @@ def explode_and_map_genes(df):
     return mapped_genes
 
 
-def explode_and_map_drugs(df, drugs_table):
+def explode_drugs(df):
     """
-    Maps drug names to CHEBI IRIs using OLS, falling back on primary drugs data from PharmGKB if needed.
-    Explodes multiple drugs in a single row.
+    Explodes multiple drugs in a single row, unless they are known to be a drug combination.
 
     :param df: dataframe to annotate (should have a 'Drug(s)' column)
-    :param drugs_table: drugs dataframe
-    :return: dataframe with 'chebi' column added
+    :return: dataframe with 'split_drug' column added
     """
-    split_drugs = explode_column(df, 'Drug(s)', 'split_drug')
-    # Query OLS in parallel as there are no batch queries currently.
-    with multiprocessing.Pool(processes=24) as pool:
-        str_to_iri = {
-            s: pool.apply(get_chebi_iri, args=(s,))
-            for s in split_drugs['split_drug'].drop_duplicates().tolist()
-        }
-    mapped_drugs = pd.concat(
-        split_drugs[split_drugs['split_drug'] == s].assign(chebi=none_to_nan(iri))
-        for s, iri in str_to_iri.items()
-    )
-    # Some drugs we can't unambiguously map using OLS, so we rely on primary data provided by PharmGKB.
-    # Using OLS first ensures we get up-to-date IDs wherever possible.
-    drugs_table['chebi_id'] = drugs_table['Cross-references'].str.extract(r'CHEBI:(?P<chebi_id>\d+)', expand=False)
-    mapped_drugs = pd.merge(mapped_drugs, drugs_table, left_on='split_drug', right_on='Name', how='left')
-    mapped_drugs['chebi'].fillna(mapped_drugs['chebi_id'].apply(chebi_id_to_iri), inplace=True)
-    return mapped_drugs
-
-
-def chebi_id_to_iri(id_):
-    if pd.notna(id_):
-        return f'http://purl.obolibrary.org/obo/CHEBI_{id_}'
-    return None
+    # Drugs on same row but not explicitly annotated as combinations
+    split_drugs = split_and_explode_column(df, 'Drug(s)', 'split_drug')
+    # Drugs explicitly annotated as combinations are kept as a list of drug names
+    split_drugs = split_and_explode_column(split_drugs, 'split_drug', 'split_drug', sep='/', split_only=True)
+    return split_drugs
 
 
 def explode_and_map_phenotypes(df):
@@ -338,7 +315,7 @@ def explode_and_map_phenotypes(df):
     :return: dataframe with 'efo' column added
     """
     df['Phenotype(s)'].fillna('', inplace=True)
-    split_phenotypes = explode_column(df, 'Phenotype(s)', 'split_phenotype')
+    split_phenotypes = split_and_explode_column(df, 'Phenotype(s)', 'split_phenotype')
     with multiprocessing.Pool(processes=24) as pool:
         str_to_iri = {
             s: pool.apply(get_efo_iri, args=(s,))
@@ -375,8 +352,7 @@ def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
         'directionality': row['Allele Function'],
 
         # PHENOTYPE ATTRIBUTES
-        'drugFromSource': row['split_drug'],
-        'drugFromSourceId': iri_to_code(row['chebi']),
+        'drugs': [{'drugFromSource': d} for d in row['split_drug']],
         'pgxCategory': row['split_pgx_category'].lower(),
         'phenotypeText': row['split_phenotype'],
         'phenotypeFromSourceId': iri_to_code(row['efo'])
