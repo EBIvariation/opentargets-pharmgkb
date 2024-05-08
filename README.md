@@ -1,10 +1,43 @@
 # opentargets-pharmgkb
 Pipeline to provide evidence strings for Open Targets from PharmGKB
 
+## Installation
+
+The pipeline only requires Python 3.8+.
+Clone the repository (or download a tagged [release](https://github.com/EBIvariation/opentargets-pharmgkb/releases))
+and run `python setup.py install`.
+
+(For EVA users, you have to manually run the deployment script for now, pending automated deployment.)
+
 ## How to run
+
+### 1. Set up the environment
+For EVA, you should log on to Codon SLURM cluster and `become` the EVA production user,
+then refer to the [private repository](https://github.com/EBIvariation/configuration/blob/master/open-targets-configuration.md#pharmgkb) for values.
+```bash
+# The directory where subdirectories for each batch will be created
+export BATCH_ROOT_BASE=
+
+# Code location where repository is cloned
+export CODE_ROOT=
+
+# Path to GRCh38 RefSeq FASTA file
+export FASTA_PATH=
 ```
+
+### 2. Download data
+```bash
+# Year and month for the upcoming Open Targets release.
+# For example, if you're processing data for “20.02” release, this variable will be set to `2020-02`.
+export OT_RELEASE=YYYY-MM
+
+# Create directory structure for holding all files for the current batch.
+export BATCH_ROOT=${BATCH_ROOT_BASE}/batch-${OT_RELEASE}
+export DATA_DIR=${BATCH_ROOT}/data
+mkdir -p ${BATCH_ROOT} ${DATA_DIR}
+cd ${BATCH_ROOT}
+
 # Download data
-export DATA_DIR=<directory for data>
 wget https://api.pharmgkb.org/v1/download/file/data/clinicalAnnotations.zip
 wget https://api.pharmgkb.org/v1/download/file/data/variants.zip
 wget https://api.pharmgkb.org/v1/download/file/data/relationships.zip
@@ -15,9 +48,32 @@ unzip -j variants.zip "*.tsv" -d $DATA_DIR
 unzip -j relationships.zip "*.tsv" -d $DATA_DIR
 rm clinicalAnnotations.zip variants.zip relationships.zip
 
-# Run pipeline
-generate_evidence.py --data-dir $DATA_DIR --fasta <path to fasta> --created-date <created date> --output-path evidence.json
+# Set the created date
+export CREATED_DATE=`ls $DATA_DIR/CREATED*.txt | sed 's/.*\([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}\).*/\1/'`
 ```
+
+### 3. Run the pipeline
+```bash
+generate_evidence.py --data-dir $DATA_DIR --fasta $FASTA_PATH --created-date $CREATED_DATE --output-path evidence.json
+
+# One-liner for EVA on SLURM
+sbatch -t 02:00:00 --mem=8G -J pharmgkb-evidence -o pharmgkb-evidence.out -e pharmgkb-evidence.err \
+  --wrap="${CODE_ROOT}/env/bin/python ${CODE_ROOT}/bin/generate_evidence.py --data-dir $DATA_DIR --fasta $FASTA_PATH --created-date $CREATED_DATE --output-path evidence.json"
+```
+
+### 4. Manual follow-up actions
+
+Update the [metrics spreadsheet](https://docs.google.com/spreadsheets/d/1Vhdajf_Aps0z9_bbHshbQthl7lHsQLxEnNBKKHUr-GE/edit#gid=0) based on the output of the pipeline.
+
+The evidence string file (`evidence.json`) must be uploaded to the [Open Targets Google Cloud Storage](https://console.cloud.google.com/storage/browser/otar012-eva/) to the **`pharmacogenomics`** folder and be named in the format `cttv012-[yyyy]-[mm]-[dd].json.gz` (e.g. `cttv012-2020-10-21.json.gz`).
+
+Once the upload is complete, send an email to Open Targets (data [at] opentargets.org) containing the following information:
+* The number of submitted evidence strings
+* The PharmGKB release date
+* The Ensembl release
+* The EFO version used for mapping
+* The `opentargets-pharmgkb` pipeline version
+* The Open Targets JSON schema version
 
 ## Schema documentation
 
