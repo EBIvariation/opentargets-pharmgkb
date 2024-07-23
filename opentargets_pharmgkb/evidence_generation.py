@@ -330,7 +330,8 @@ def explode_and_map_phenotypes(df):
 
 def iri_to_code(iri):
     """Convert iri (e.g. http://purl.obolibrary.org/obo/CHEBI_4792) to code, per Open Targets request."""
-    return iri.split('/')[-1] if iri and pd.notna(iri) else None
+    # Temporary workaround for MPATH terms until https://github.com/EBIvariation/CMAT/issues/417 is fixed
+    return iri.split('/')[-1] if iri and pd.notna(iri) and 'MPATH' not in iri else None
 
 
 def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
