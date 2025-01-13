@@ -38,6 +38,7 @@ mkdir -p ${BATCH_ROOT} ${DATA_DIR}
 cd ${BATCH_ROOT}
 
 # Download data
+# TODO download variant annotation data
 wget https://api.pharmgkb.org/v1/download/file/data/clinicalAnnotations.zip
 wget https://api.pharmgkb.org/v1/download/file/data/variants.zip
 wget https://api.pharmgkb.org/v1/download/file/data/relationships.zip

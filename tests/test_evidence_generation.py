@@ -113,3 +113,7 @@ def test_pipeline_missing_file():
             created_date='2023-03-23',
             output_path=output_path
         )
+
+
+def test_pipeline_with_doe():
+    pass

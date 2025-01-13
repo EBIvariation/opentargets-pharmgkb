@@ -16,6 +16,7 @@ from opentargets_pharmgkb.counts import ClinicalAnnotationCounts
 from opentargets_pharmgkb.ontology_apis import get_efo_iri
 from opentargets_pharmgkb.pandas_utils import none_to_nan, split_and_explode_column, read_tsv_to_df
 from opentargets_pharmgkb.validation import validate_evidence_string
+from opentargets_pharmgkb.variant_annotations import merge_variant_annotation_tables, get_variant_annotations
 from opentargets_pharmgkb.variant_coordinates import Fasta, parse_genotype
 
 logging.basicConfig()
@@ -25,24 +26,29 @@ logger.setLevel(level=logging.DEBUG)
 ID_COL_NAME = 'Clinical Annotation ID'
 
 
-def pipeline(data_dir, fasta_path, created_date, output_path):
+def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
     clinical_annot_path = os.path.join(data_dir, 'clinical_annotations.tsv')
     clinical_alleles_path = os.path.join(data_dir, 'clinical_ann_alleles.tsv')
     clinical_evidence_path = os.path.join(data_dir, 'clinical_ann_evidence.tsv')
     variants_path = os.path.join(data_dir, 'variants.tsv')
     relationships_path = os.path.join(data_dir, 'relationships.tsv')
-    for p in (clinical_annot_path, clinical_alleles_path, clinical_evidence_path, variants_path):
-        if not os.path.exists(p):
-            logger.error(f'Missing required data file: {p}')
-            raise ValueError(f'Missing required data file: {p}')
+    var_drug_path = os.path.join(data_dir, 'var_drug_ann.tsv')
+    var_pheno_path = os.path.join(data_dir, 'var_pheno_ann.tsv')
+    check_data_files_present((clinical_annot_path, clinical_alleles_path, clinical_evidence_path, variants_path))
+    if with_doe:
+        check_data_files_present((var_drug_path, var_pheno_path))
 
     clinical_annot_table = read_tsv_to_df(clinical_annot_path)
     clinical_alleles_table = read_tsv_to_df(clinical_alleles_path)
     clinical_evidence_table = read_tsv_to_df(clinical_evidence_path)
     variants_table = read_tsv_to_df(variants_path)
     relationships_table = read_tsv_to_df(relationships_path)
+    if with_doe:
+        unified_var_ann_table = merge_variant_annotation_tables(read_tsv_to_df(var_drug_path),
+                                                                read_tsv_to_df(var_pheno_path))
 
     # Gather input counts
+    # TODO think how to update counts
     counts = ClinicalAnnotationCounts()
     counts.clinical_annotations = len(clinical_annot_table)
     counts.with_rs = len(clinical_annot_table[clinical_annot_table['Variant/Haplotypes'].str.startswith('rs')])
@@ -76,9 +82,17 @@ def pipeline(data_dir, fasta_path, created_date, output_path):
     consequences_table = pd.concat((rs_consequences_table, no_rs_genes_table))
 
     # Add clinical evidence with PMIDs
+    # TODO modify this step for DoE
     pmid_evidence = clinical_evidence_table[clinical_evidence_table['PMID'].notna()]
-    evidence_table = pd.merge(consequences_table, pmid_evidence.groupby(by=ID_COL_NAME).aggregate(
-        publications=('PMID', list)), on=ID_COL_NAME)
+    if with_doe:
+        results = get_variant_annotations(consequences_table, pmid_evidence, unified_var_ann_table)
+        # TODO in the result, each row (caid + genotype ID) is associated with a list of dicts (?)
+        # TODO temporarily the same line while I write a test
+        evidence_table = pd.merge(consequences_table, pmid_evidence.groupby(by=ID_COL_NAME).aggregate(
+            publications=('PMID', list)), on=ID_COL_NAME)
+    else:
+        evidence_table = pd.merge(consequences_table, pmid_evidence.groupby(by=ID_COL_NAME).aggregate(
+            publications=('PMID', list)), on=ID_COL_NAME)
 
     # Gather output counts
     counts.evidence_strings = len(evidence_table)
@@ -112,6 +126,13 @@ def pipeline(data_dir, fasta_path, created_date, output_path):
     if invalid_evidence:
         logger.error('Invalid evidence strings occurred, please check the logs for the details')
         sys.exit(1)
+
+
+def check_data_files_present(paths):
+    for p in paths:
+        if not os.path.exists(p):
+            logger.error(f'Missing required data file: {p}')
+            raise ValueError(f'Missing required data file: {p}')
 
 
 def split_df_with_or_without_rs(df):
