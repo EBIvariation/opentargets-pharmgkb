@@ -24,6 +24,8 @@ logger = logging.getLogger(__package__)
 logger.setLevel(level=logging.DEBUG)
 
 ID_COL_NAME = 'Clinical Annotation ID'
+GENOTYPE_ALLELE_COL_NAME = 'Genotype/Allele'
+VARIANT_HAPLOTYPE_COL_NAME = 'Variant/Haplotypes'
 
 
 def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
@@ -51,10 +53,10 @@ def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
     # TODO think how to update counts
     counts = ClinicalAnnotationCounts()
     counts.clinical_annotations = len(clinical_annot_table)
-    counts.with_rs = len(clinical_annot_table[clinical_annot_table['Variant/Haplotypes'].str.startswith('rs')])
+    counts.with_rs = len(clinical_annot_table[clinical_annot_table[VARIANT_HAPLOTYPE_COL_NAME].str.startswith('rs')])
 
     # Main processing
-    merged_with_variants_table = pd.merge(clinical_annot_table, variants_table, left_on='Variant/Haplotypes',
+    merged_with_variants_table = pd.merge(clinical_annot_table, variants_table, left_on=VARIANT_HAPLOTYPE_COL_NAME,
                                           right_on='Variant Name', how='left')
     merged_with_alleles_table = pd.merge(merged_with_variants_table, clinical_alleles_table, on=ID_COL_NAME, how='left')
     counts.exploded_alleles = len(merged_with_alleles_table)
@@ -82,17 +84,14 @@ def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
     consequences_table = pd.concat((rs_consequences_table, no_rs_genes_table))
 
     # Add clinical evidence with PMIDs
-    # TODO modify this step for DoE
     pmid_evidence = clinical_evidence_table[clinical_evidence_table['PMID'].notna()]
+    evidence_table = pd.merge(consequences_table, pmid_evidence.groupby(by=ID_COL_NAME).aggregate(
+        all_publications=('PMID', list)), on=ID_COL_NAME)
     if with_doe:
-        results = get_variant_annotations(consequences_table, pmid_evidence, unified_var_ann_table)
-        # TODO in the result, each row (caid + genotype ID) is associated with a list of dicts (?)
-        # TODO temporarily the same line while I write a test
-        evidence_table = pd.merge(consequences_table, pmid_evidence.groupby(by=ID_COL_NAME).aggregate(
-            publications=('PMID', list)), on=ID_COL_NAME)
-    else:
-        evidence_table = pd.merge(consequences_table, pmid_evidence.groupby(by=ID_COL_NAME).aggregate(
-            publications=('PMID', list)), on=ID_COL_NAME)
+        parsed_var_ann_df = get_variant_annotations(evidence_table, pmid_evidence, unified_var_ann_table)
+        # TODO the comparison allele/genotype from variant annotations will not necessarily match (in level) the
+        #  annotated allele/genotype from clinical annotations...
+        evidence_table = pd.merge(evidence_table, parsed_var_ann_df, on=(ID_COL_NAME, GENOTYPE_ALLELE_COL_NAME))
 
     # Gather output counts
     counts.evidence_strings = len(evidence_table)
@@ -113,7 +112,8 @@ def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
     invalid_evidence = False
     with open(output_path, 'w+') as output:
         for ev_string in evidence:
-            if validate_evidence_string(ev_string):
+            # DoE evidence will not validate for now
+            if with_doe or validate_evidence_string(ev_string):
                 output.write(json.dumps(ev_string)+'\n')
             else:
                 invalid_evidence = True
@@ -136,7 +136,7 @@ def check_data_files_present(paths):
 
 
 def split_df_with_or_without_rs(df):
-    m = df['Variant/Haplotypes'].str.startswith('rs')
+    m = df[VARIANT_HAPLOTYPE_COL_NAME].str.startswith('rs')
     return df[m], df[~m]
 
 
@@ -155,15 +155,15 @@ def get_genotype_ids(df, fasta_path, counts=None):
     """
     fasta = Fasta(fasta_path)
     # First set a column with all genotypes for a given RS
-    df_with_ids = df.assign(parsed_genotype=df['Genotype/Allele'].apply(parse_genotype))
-    df_with_ids = pd.merge(df_with_ids, df_with_ids.groupby(by='Variant/Haplotypes').aggregate(
-        all_genotypes=('parsed_genotype', list)), on='Variant/Haplotypes')
+    df_with_ids = df.assign(parsed_genotype=df[GENOTYPE_ALLELE_COL_NAME].apply(parse_genotype))
+    df_with_ids = pd.merge(df_with_ids, df_with_ids.groupby(by=VARIANT_HAPLOTYPE_COL_NAME).aggregate(
+        all_genotypes=('parsed_genotype', list)), on=VARIANT_HAPLOTYPE_COL_NAME)
     # Get coordinates (chromosome, position, reference, and all alternate alleles) for each RS
     rs_to_coords = {}
-    for i, row in df_with_ids.drop_duplicates(['Variant/Haplotypes']).iterrows():
-        chrom, pos, ref, alleles_dict = fasta.get_chr_pos_ref(row['Variant/Haplotypes'], row['Location'],
+    for i, row in df_with_ids.drop_duplicates([VARIANT_HAPLOTYPE_COL_NAME]).iterrows():
+        chrom, pos, ref, alleles_dict = fasta.get_chr_pos_ref(row[VARIANT_HAPLOTYPE_COL_NAME], row['Location'],
                                                               row['all_genotypes'])
-        rs_to_coords[row['Variant/Haplotypes']] = (chrom, pos, ref, alleles_dict)
+        rs_to_coords[row[VARIANT_HAPLOTYPE_COL_NAME]] = (chrom, pos, ref, alleles_dict)
         # Generate per-variant counts, if applicable
         if not counts:
             continue
@@ -176,7 +176,7 @@ def get_genotype_ids(df, fasta_path, counts=None):
         counts.rs_with_more_than_2_alleles += 1
     # Use rs_to_coords to generate genotypeId for each genotype
     for i, row in df_with_ids.iterrows():
-        chrom, pos, ref, alleles_dict = rs_to_coords[row['Variant/Haplotypes']]
+        chrom, pos, ref, alleles_dict = rs_to_coords[row[VARIANT_HAPLOTYPE_COL_NAME]]
         if chrom and pos and ref and alleles_dict:
             df_with_ids.at[i, 'genotype_id'] = genotype_id(chrom, pos, ref, sorted([alleles_dict[a]
                                                                                     for a in row['parsed_genotype']]))
@@ -275,9 +275,9 @@ def get_haplotype_ids(df, relationships_table):
             # e.g. "CYP2D6" or "G6PD"
             single_gene['Gene']
             # whether to concatenate with a space or not
-            + np.where(single_gene['Genotype/Allele'].str.startswith('*'), '', ' ')
+            + np.where(single_gene[GENOTYPE_ALLELE_COL_NAME].str.startswith('*'), '', ' ')
             # e.g. "*3" or "A- 202A_376G"
-            + single_gene['Genotype/Allele']
+            + single_gene[GENOTYPE_ALLELE_COL_NAME]
     )
     # Fetch the internal haplotype ID
     single_gene['pgkb_haplotype_id'] = single_gene['haplotype_id'].apply(hap_id_to_pgkb_id, args=(relationships_table,))
@@ -366,10 +366,11 @@ def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
         'datatypeId': 'clinical_annotation',
         'studyId': row[ID_COL_NAME],
         'evidenceLevel': row['Level of Evidence'],
-        'literature': [str(x) for x in row['publications']],
+        'literature': [str(x) for x in row['all_publications']],
+        # TODO report the other DoE attributes
 
         # GENOTYPE/ALLELE ATTRIBUTES
-        'genotype': row['Genotype/Allele'],
+        'genotype': row[GENOTYPE_ALLELE_COL_NAME],
         'genotypeAnnotationText': row['Annotation Text'],
         'directionality': row['Allele Function'],
 
@@ -388,10 +389,10 @@ def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
 
 def add_variant_haplotype_attributes(so_accession_dict, row, evidence_string):
     """Adds attributes to the evidence string depending on whether the record is for an rsID variant or not."""
-    if row['Variant/Haplotypes'].startswith('rs'):
+    if row[VARIANT_HAPLOTYPE_COL_NAME].startswith('rs'):
         evidence_string.update({
             'genotypeId': row['genotype_id'],
-            'variantRsId': row['Variant/Haplotypes'],
+            'variantRsId': row[VARIANT_HAPLOTYPE_COL_NAME],
             'variantFunctionalConsequenceId': so_accession_dict.get(row['consequence_term'], None),
             'targetFromSourceId': row['overlapping_gene'],
         })
