@@ -5,6 +5,7 @@ import pandas as pd
 from opentargets_pharmgkb.pandas_utils import split_and_explode_column
 
 ID_COL_NAME = 'Clinical Annotation ID'
+GENOTYPE_ALLELE_COL_NAME = 'Genotype/Allele'
 VAR_ID_COL_NAME = 'Variant Annotation ID'
 EFFECT_COL_NAME = 'effect_term'
 OBJECT_COL_NAME = 'object_term'
@@ -37,32 +38,35 @@ def merge_variant_annotation_tables(var_drug_table, var_pheno_table):
     drug_df = drug_df.rename(columns={'PD/PK terms': EFFECT_COL_NAME, 'Drug(s)': OBJECT_COL_NAME})
     phenotype_df = phenotype_df.rename(columns={'Side effect/efficacy/other': EFFECT_COL_NAME,
                                                 'Phenotype': OBJECT_COL_NAME})
-
-    # TODO determine if we want to include functional evidence or not
-    # functional_df = var_fa_ann[[
-    #     'Variant Annotation ID', 'PMID', 'Sentence', 'Alleles', 'Is/Is Not associated',
-    #     'Direction of effect', 'Functional terms', 'Gene/gene product',
-    #     'Comparison Allele(s) or Genotype(s)'
-    # ]]
-    # functional_df = functional_df.rename(columns={'Functional terms': EFFECT_COL_NAME,
-    #                                               'Gene/gene product': OBJECT_COL_NAME})
-
+    # TODO confirm if we want to include functional assay evidence or not
     return pd.concat((drug_df, phenotype_df))
 
 
-# TODO modify to use dataframes directly rather than dict
 def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, variant_annotations):
     """Main method for getting resulting associations"""
+    # TODO filter for "is associated" only - do this only if all PMIDs are being reported somewhere else
     caid_to_vaid = {
         caid: clinical_evidence_df[clinical_evidence_df[ID_COL_NAME] == caid]['Evidence ID'].to_list()
         for caid in clinical_evidence_df[ID_COL_NAME]
     }
     results = {}
     for caid, vaids in caid_to_vaid.items():
-        clinical_alleles_df = clinical_alleles_df[clinical_alleles_df[ID_COL_NAME] == caid][[ID_COL_NAME, 'Genotype/Allele', 'Annotation Text']]
+        clinical_alleles_for_caid = clinical_alleles_df[clinical_alleles_df[ID_COL_NAME] == caid][[
+            ID_COL_NAME, GENOTYPE_ALLELE_COL_NAME, 'Annotation Text'
+        ]]
         variant_ann_for_caid = variant_annotations[variant_annotations[VAR_ID_COL_NAME].isin(vaids)]
-        results[caid] = get_associations(variant_ann_for_caid, clinical_alleles_df)
-    return results
+        results[caid] = get_associations(variant_ann_for_caid, clinical_alleles_for_caid)
+
+    # Re-assemble results into a single dataframe
+    final_dfs = []
+    for caid, df in results.items():
+        new_df = df[[
+            GENOTYPE_ALLELE_COL_NAME, 'PMID', 'Sentence', 'Alleles',
+            DOE_COL_NAME, EFFECT_COL_NAME, OBJECT_COL_NAME, COMPARISON_COL_NAME
+        ]].groupby(GENOTYPE_ALLELE_COL_NAME, as_index=False).aggregate(list)
+        new_df[ID_COL_NAME] = caid
+        final_dfs.append(new_df)
+    return pd.concat(final_dfs)
 
 
 def get_associations(annotation_df, clinical_alleles_df):
@@ -78,11 +82,11 @@ def get_associations(annotation_df, clinical_alleles_df):
     split_ann_df = split_and_explode_column(split_ann_df, 'split_alleles_1', 'split_alleles_2', sep='/')
     # Get alleles from clinical annotations - same logic as for getting ids
     split_clin_df = clinical_alleles_df.assign(
-        parsed_genotype=clinical_alleles_df['Genotype/Allele'].apply(extended_parse_genotype))
+        parsed_genotype=clinical_alleles_df[GENOTYPE_ALLELE_COL_NAME].apply(extended_parse_genotype))
     split_clin_df = split_clin_df.explode('parsed_genotype').reset_index(drop=True)
 
     # Match by +-split and /-split
-    merged_df = pd.merge(split_clin_df, split_ann_df, how='outer', left_on='Genotype/Allele',
+    merged_df = pd.merge(split_clin_df, split_ann_df, how='outer', left_on=GENOTYPE_ALLELE_COL_NAME,
                          right_on='split_alleles_1')
     merged_df_2 = pd.merge(split_clin_df, split_ann_df, how='outer', left_on='parsed_genotype',
                            right_on='split_alleles_2')
@@ -93,16 +97,16 @@ def get_associations(annotation_df, clinical_alleles_df):
     for _, genotype, _, parsed_genotype in split_clin_df.itertuples(index=False):
         # Rows that matched on genotype
         rows_first_match = merged_df[
-            (merged_df['Genotype/Allele'] == genotype) & (merged_df['parsed_genotype'] == parsed_genotype) & (
+            (merged_df[GENOTYPE_ALLELE_COL_NAME] == genotype) & (merged_df['parsed_genotype'] == parsed_genotype) & (
                 ~merged_df[VAR_ID_COL_NAME].isna())]
         # Rows that matched on parsed genotype
         rows_second_match = merged_df_2[
-            (merged_df_2['Genotype/Allele'] == genotype) & (merged_df_2['parsed_genotype'] == parsed_genotype) & (
+            (merged_df_2[GENOTYPE_ALLELE_COL_NAME] == genotype) & (merged_df_2['parsed_genotype'] == parsed_genotype) & (
                 ~merged_df_2[VAR_ID_COL_NAME].isna())]
 
         # If neither matches, add with nan's
         if rows_first_match.empty and rows_second_match.empty:
-            all_results.append(merged_df[(merged_df['Genotype/Allele'] == genotype) & (
+            all_results.append(merged_df[(merged_df[GENOTYPE_ALLELE_COL_NAME] == genotype) & (
                         merged_df['parsed_genotype'] == parsed_genotype)])
         else:
             all_results.extend([rows_first_match, rows_second_match])
