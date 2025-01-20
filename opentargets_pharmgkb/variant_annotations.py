@@ -11,6 +11,7 @@ EFFECT_COL_NAME = 'effect_term'
 OBJECT_COL_NAME = 'object_term'
 ASSOC_COL_NAME = 'Is/Is Not associated'
 DOE_COL_NAME = 'Direction of effect'
+BASE_ALLELE_COL_NAME = 'Alleles'
 COMPARISON_COL_NAME = 'Comparison Allele(s) or Genotype(s)'
 
 
@@ -20,7 +21,7 @@ def merge_variant_annotation_tables(var_drug_table, var_pheno_table):
 
     :param var_drug_table: variant drug annotation table
     :param var_pheno_table: variant phenotype annotation table
-    :return: unified dataframe
+    :return: unified variant annotation dataframe
     """
     # Select relevant columns
     # TODO confirm which columns we want to include, and whether to include functional assay evidence
@@ -44,8 +45,15 @@ def merge_variant_annotation_tables(var_drug_table, var_pheno_table):
     return pd.concat((drug_df, phenotype_df))
 
 
-def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, variant_annotations):
-    """Main method for getting resulting associations"""
+def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, var_annotations_df):
+    """
+    Main method for getting associations between clinical annotations and variant annotations.
+
+    :param clinical_alleles_df: clinical annotation alleles dataframe
+    :param clinical_evidence_df: clinical evidence dataframe, used to link clinical annotations and variant annotations
+    :param var_annotations_df: variant annotation dataframe
+    :return: dataframe describing associations between clinical annotations alleles and variant annotations
+    """
     # TODO filter for "is associated" only - do this only if all PMIDs are being reported somewhere else
     caid_to_vaid = {
         caid: clinical_evidence_df[clinical_evidence_df[ID_COL_NAME] == caid]['Evidence ID'].to_list()
@@ -54,16 +62,16 @@ def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, variant_a
     results = {}
     for caid, vaids in caid_to_vaid.items():
         clinical_alleles_for_caid = clinical_alleles_df[clinical_alleles_df[ID_COL_NAME] == caid][[
-            ID_COL_NAME, GENOTYPE_ALLELE_COL_NAME, 'Annotation Text'
+            ID_COL_NAME, GENOTYPE_ALLELE_COL_NAME
         ]]
-        variant_ann_for_caid = variant_annotations[variant_annotations[VAR_ID_COL_NAME].isin(vaids)]
-        results[caid] = get_associations(variant_ann_for_caid, clinical_alleles_for_caid)
+        variant_ann_for_caid = var_annotations_df[var_annotations_df[VAR_ID_COL_NAME].isin(vaids)]
+        results[caid] = associate_annotations_with_alleles(variant_ann_for_caid, clinical_alleles_for_caid)
 
     # Re-assemble results into a single dataframe
     final_dfs = []
     for caid, df in results.items():
         new_df = df[[
-            GENOTYPE_ALLELE_COL_NAME, 'PMID', 'Sentence', 'Alleles',
+            GENOTYPE_ALLELE_COL_NAME, 'PMID', 'Sentence', BASE_ALLELE_COL_NAME,
             DOE_COL_NAME, EFFECT_COL_NAME, OBJECT_COL_NAME, COMPARISON_COL_NAME
         ]].groupby(GENOTYPE_ALLELE_COL_NAME, as_index=False).aggregate(lambda x: list(x.dropna()))
         new_df[ID_COL_NAME] = caid
@@ -71,20 +79,22 @@ def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, variant_a
     return pd.concat(final_dfs)
 
 
-def get_associations(annotation_df, clinical_alleles_df):
+def associate_annotations_with_alleles(annotation_df, clinical_alleles_df):
     """
+    Associate variant annotations with clinical annotation alleles, using the algorithm described here:
+    https://docs.google.com/document/d/1YYNMLArt0FNFUEFLieMDm1p5NHSfJheddnPUocy8pGM/edit?usp=sharing
 
-    :param annotation_df: variant annotation dataframe, already filtered to only contain one clinical annotation ID
-    :param clinical_alleles_df: clinical annotation alleles dataframe, already filtered to contain one CAID
-    :return:
+    :param annotation_df: variant annotation dataframe, filtered to only contain one clinical annotation ID
+    :param clinical_alleles_df: clinical annotation alleles dataframe, filtered to contain one CAID
+    :return: dataframe merging annotation_df and clinical_alleles_df based on the computed associations
     """
     # Split on +
-    split_ann_df = split_and_explode_column(annotation_df, 'Alleles', 'split_alleles_1', sep='\+')
+    split_ann_df = split_and_explode_column(annotation_df, BASE_ALLELE_COL_NAME, 'split_alleles_1', sep='\+')
     # Split on /
     split_ann_df = split_and_explode_column(split_ann_df, 'split_alleles_1', 'split_alleles_2', sep='/')
     # Get alleles from clinical annotations - same logic as for getting ids
     split_clin_df = clinical_alleles_df.assign(
-        parsed_genotype=clinical_alleles_df[GENOTYPE_ALLELE_COL_NAME].apply(extended_parse_genotype))
+        parsed_genotype=clinical_alleles_df[GENOTYPE_ALLELE_COL_NAME].apply(simple_parse_genotype))
     split_clin_df = split_clin_df.explode('parsed_genotype').reset_index(drop=True)
 
     # Match by +-split and /-split
@@ -96,7 +106,7 @@ def get_associations(annotation_df, clinical_alleles_df):
 
     # If a genotype in a clinical annotation doesn't have evidence, want this listed with nan's
     all_results = []
-    for _, genotype, _, parsed_genotype in split_clin_df.itertuples(index=False):
+    for caid, genotype, parsed_genotype in split_clin_df.itertuples(index=False):
         # Rows that matched on genotype
         rows_first_match = merged_df[
             (merged_df[GENOTYPE_ALLELE_COL_NAME] == genotype) & (merged_df['parsed_genotype'] == parsed_genotype) & (
@@ -118,24 +128,25 @@ def get_associations(annotation_df, clinical_alleles_df):
     # If _no_ part of a variant annotation is associated with any clinical annotation, want this listed with nan's
     for idx, row in split_ann_df.iterrows():
         vaid = row[VAR_ID_COL_NAME]
-        alleles = row['Alleles']
+        alleles = row[BASE_ALLELE_COL_NAME]
         split_1 = row['split_alleles_1']
         split_2 = row['split_alleles_2']
         results_with_vaid = final_result[final_result[VAR_ID_COL_NAME] == vaid]
         if results_with_vaid.empty:
             final_result = pd.concat((final_result,
                                       merged_df[(merged_df[VAR_ID_COL_NAME] == vaid) & (
-                                                  merged_df['Alleles'] == alleles) &
+                                                  merged_df[BASE_ALLELE_COL_NAME] == alleles) &
                                                 (merged_df['split_alleles_1'] == split_1) & (
                                                             merged_df['split_alleles_2'] == split_2)]
                                       ))
     return final_result
 
 
-def extended_parse_genotype(genotype_string):
+def simple_parse_genotype(genotype_string):
     """
-    Parse PGKB string representations of genotypes into alleles. Extended to include star alleles.
-    TODO can we get rid of this method?
+    Parse PGKB string representations of genotypes into alleles. Note this is simpler than the one in
+    variant_coordinates.py as it does not need to compute precise variant coordinates, just parse string
+    representations of alleles to use for matching.
     """
     alleles = [genotype_string]
 
@@ -143,7 +154,7 @@ def extended_parse_genotype(genotype_string):
     if len(genotype_string) == 2 and '*' not in genotype_string:
         alleles = [genotype_string[0], genotype_string[1]]
 
-    # others
+    # others (indels, repeats, star alleles)
     m = re.match('([^/]+)/([^/]+)', genotype_string, re.IGNORECASE)
     if m:
         alleles = [m.group(1), m.group(2)]

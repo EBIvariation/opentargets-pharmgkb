@@ -17,7 +17,7 @@ from opentargets_pharmgkb.ontology_apis import get_efo_iri
 from opentargets_pharmgkb.pandas_utils import none_to_nan, split_and_explode_column, read_tsv_to_df, nan_to_empty
 from opentargets_pharmgkb.validation import validate_evidence_string
 from opentargets_pharmgkb.variant_annotations import merge_variant_annotation_tables, get_variant_annotations, \
-    DOE_COL_NAME, EFFECT_COL_NAME, OBJECT_COL_NAME, COMPARISON_COL_NAME
+    DOE_COL_NAME, EFFECT_COL_NAME, OBJECT_COL_NAME, COMPARISON_COL_NAME, BASE_ALLELE_COL_NAME
 from opentargets_pharmgkb.variant_coordinates import Fasta, parse_genotype
 
 logging.basicConfig()
@@ -90,8 +90,6 @@ def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
         all_publications=('PMID', list)), on=ID_COL_NAME)
     if with_doe:
         parsed_var_ann_df = get_variant_annotations(evidence_table, pmid_evidence, unified_var_ann_table)
-        # TODO the comparison allele/genotype from variant annotations will not necessarily match (in level) the
-        #  annotated allele/genotype from clinical annotations...
         evidence_table = pd.merge(evidence_table, parsed_var_ann_df, on=(ID_COL_NAME, GENOTYPE_ALLELE_COL_NAME))
 
     # Gather output counts
@@ -420,7 +418,7 @@ def add_direction_of_effect_attributes(row, evidence_string):
         # Note pandas groupby().aggregate(list) will preserve order, so the use of zip is safe
         for pmid, doe, effect, obj, base_allele, comp_allele, sentence in zip(
             row['PMID'], row[DOE_COL_NAME], row[EFFECT_COL_NAME], row[OBJECT_COL_NAME],
-            row['Alleles'], row[COMPARISON_COL_NAME], row['Sentence']
+            row[BASE_ALLELE_COL_NAME], row[COMPARISON_COL_NAME], row['Sentence']
         )
     ]
     return evidence_string
