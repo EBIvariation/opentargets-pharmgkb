@@ -14,9 +14,10 @@ from cmat.output_generation.consequence_type import get_so_accession_dict
 
 from opentargets_pharmgkb.counts import ClinicalAnnotationCounts
 from opentargets_pharmgkb.ontology_apis import get_efo_iri
-from opentargets_pharmgkb.pandas_utils import none_to_nan, split_and_explode_column, read_tsv_to_df
+from opentargets_pharmgkb.pandas_utils import none_to_nan, split_and_explode_column, read_tsv_to_df, nan_to_empty
 from opentargets_pharmgkb.validation import validate_evidence_string
-from opentargets_pharmgkb.variant_annotations import merge_variant_annotation_tables, get_variant_annotations
+from opentargets_pharmgkb.variant_annotations import merge_variant_annotation_tables, get_variant_annotations, \
+    DOE_COL_NAME, EFFECT_COL_NAME, OBJECT_COL_NAME, COMPARISON_COL_NAME
 from opentargets_pharmgkb.variant_coordinates import Fasta, parse_genotype
 
 logging.basicConfig()
@@ -105,7 +106,7 @@ def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
     so_accession_dict = get_so_accession_dict()
     so_accession_dict['no_sequence_alteration'] = 'SO_0002073'
     evidence = [
-        generate_clinical_annotation_evidence(so_accession_dict, created_date, row)
+        generate_clinical_annotation_evidence(so_accession_dict, created_date, row, with_doe)
         for _, row in evidence_table.iterrows()
     ]
     # Validate and write
@@ -355,7 +356,7 @@ def iri_to_code(iri):
     return iri.split('/')[-1] if iri and pd.notna(iri) and 'MPATH' not in iri else None
 
 
-def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
+def generate_clinical_annotation_evidence(so_accession_dict, created_date, row, with_doe):
     """Generates an evidence string for a PharmGKB clinical annotation."""
     partial_evidence_string = {
         # DATA SOURCE ATTRIBUTES
@@ -367,7 +368,6 @@ def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
         'studyId': row[ID_COL_NAME],
         'evidenceLevel': row['Level of Evidence'],
         'literature': [str(x) for x in row['all_publications']],
-        # TODO report the other DoE attributes
 
         # GENOTYPE/ALLELE ATTRIBUTES
         'genotype': row[GENOTYPE_ALLELE_COL_NAME],
@@ -381,6 +381,8 @@ def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
         'phenotypeFromSourceId': iri_to_code(row['efo'])
     }
     evidence_string = add_variant_haplotype_attributes(so_accession_dict, row, partial_evidence_string)
+    if with_doe:
+        evidence_string = add_direction_of_effect_attributes(row, evidence_string)
     # Remove the attributes with empty values (either None or empty lists).
     evidence_string = {key: value for key, value in evidence_string.items()
                        if value and (isinstance(value, list) or pd.notna(value))}
@@ -402,6 +404,25 @@ def add_variant_haplotype_attributes(so_accession_dict, row, evidence_string):
             'haplotypeFromSourceId': row['pgkb_haplotype_id'],
             'targetFromSourceId': row['gene_from_pgkb']
         })
+    return evidence_string
+
+
+def add_direction_of_effect_attributes(row, evidence_string):
+    evidence_string['evidenceFromSource'] = [
+        {
+            # Convert columns to a short summary statement, e.g. "increased metabolism of nicotine"
+            'directionOfEffect': ' '.join((nan_to_empty(doe), nan_to_empty(effect), nan_to_empty(obj))).strip(),
+            'baseAlleleOrGenotype': base_allele,
+            'comparisonAlleleOrGenotype': comp_allele,
+            'PMID': pmid,
+            'annotationText': sentence
+        }
+        # Note pandas groupby().aggregate(list) will preserve order, so the use of zip is safe
+        for pmid, doe, effect, obj, base_allele, comp_allele, sentence in zip(
+            row['PMID'], row[DOE_COL_NAME], row[EFFECT_COL_NAME], row[OBJECT_COL_NAME],
+            row['Alleles'], row[COMPARISON_COL_NAME], row['Sentence']
+        )
+    ]
     return evidence_string
 
 
