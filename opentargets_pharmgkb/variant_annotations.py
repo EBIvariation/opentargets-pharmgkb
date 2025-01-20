@@ -23,7 +23,7 @@ def merge_variant_annotation_tables(var_drug_table, var_pheno_table):
     :return: unified dataframe
     """
     # Select relevant columns
-    # TODO confirm which columns we want to include
+    # TODO confirm which columns we want to include, and whether to include functional assay evidence
     drug_df = var_drug_table[[
         'Variant Annotation ID', 'PMID', 'Sentence', 'Alleles', 'Is/Is Not associated',
         'Direction of effect', 'PD/PK terms', 'Drug(s)',
@@ -38,7 +38,9 @@ def merge_variant_annotation_tables(var_drug_table, var_pheno_table):
     drug_df = drug_df.rename(columns={'PD/PK terms': EFFECT_COL_NAME, 'Drug(s)': OBJECT_COL_NAME})
     phenotype_df = phenotype_df.rename(columns={'Side effect/efficacy/other': EFFECT_COL_NAME,
                                                 'Phenotype': OBJECT_COL_NAME})
-    # TODO confirm if we want to include functional assay evidence or not
+    # Strip annotation (disease, side effect, etc.) from phenotype column - we might use this later but not now
+    phenotype_df[OBJECT_COL_NAME] = phenotype_df[OBJECT_COL_NAME].dropna().apply(
+        lambda p: p.split(':')[1] if ':' in p else p)
     return pd.concat((drug_df, phenotype_df))
 
 
@@ -63,7 +65,7 @@ def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, variant_a
         new_df = df[[
             GENOTYPE_ALLELE_COL_NAME, 'PMID', 'Sentence', 'Alleles',
             DOE_COL_NAME, EFFECT_COL_NAME, OBJECT_COL_NAME, COMPARISON_COL_NAME
-        ]].groupby(GENOTYPE_ALLELE_COL_NAME, as_index=False).aggregate(list)
+        ]].groupby(GENOTYPE_ALLELE_COL_NAME, as_index=False).aggregate(lambda x: list(x.dropna()))
         new_df[ID_COL_NAME] = caid
         final_dfs.append(new_df)
     return pd.concat(final_dfs)
