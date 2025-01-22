@@ -39,7 +39,7 @@ def merge_variant_annotation_tables(var_drug_table, var_pheno_table):
     drug_df = drug_df.rename(columns={'PD/PK terms': EFFECT_COL_NAME, 'Drug(s)': OBJECT_COL_NAME})
     phenotype_df = phenotype_df.rename(columns={'Side effect/efficacy/other': EFFECT_COL_NAME,
                                                 'Phenotype': OBJECT_COL_NAME})
-    # Strip annotation (disease, side effect, etc.) from phenotype column - we might use this later but not now
+    # Strip type annotation (disease, side effect, etc.) from phenotype column - we might use this later but not now
     phenotype_df[OBJECT_COL_NAME] = phenotype_df[OBJECT_COL_NAME].dropna().apply(
         lambda p: p.split(':')[1] if ':' in p else p)
     return pd.concat((drug_df, phenotype_df))
@@ -54,7 +54,6 @@ def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, var_annot
     :param var_annotations_df: variant annotation dataframe
     :return: dataframe describing associations between clinical annotations alleles and variant annotations
     """
-    # TODO filter for "is associated" only - do this only if all PMIDs are being reported somewhere else
     caid_to_vaid = {
         caid: clinical_evidence_df[clinical_evidence_df[ID_COL_NAME] == caid]['Evidence ID'].to_list()
         for caid in clinical_evidence_df[ID_COL_NAME]
@@ -65,6 +64,10 @@ def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, var_annot
             ID_COL_NAME, GENOTYPE_ALLELE_COL_NAME
         ]]
         variant_ann_for_caid = var_annotations_df[var_annotations_df[VAR_ID_COL_NAME].isin(vaids)]
+        # Filter for positive associations only
+        variant_ann_for_caid = variant_ann_for_caid[
+            variant_ann_for_caid[ASSOC_COL_NAME].str.lower() == 'associated with'
+        ]
         results[caid] = associate_annotations_with_alleles(variant_ann_for_caid, clinical_alleles_for_caid)
 
     # Re-assemble results into a single dataframe
@@ -73,7 +76,7 @@ def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, var_annot
         new_df = df[[
             GENOTYPE_ALLELE_COL_NAME, 'PMID', 'Sentence', BASE_ALLELE_COL_NAME,
             DOE_COL_NAME, EFFECT_COL_NAME, OBJECT_COL_NAME, COMPARISON_COL_NAME
-        ]].groupby(GENOTYPE_ALLELE_COL_NAME, as_index=False).aggregate(lambda x: list(x.dropna()))
+        ]].groupby(GENOTYPE_ALLELE_COL_NAME, as_index=False).aggregate(list)
         new_df[ID_COL_NAME] = caid
         final_dfs.append(new_df)
     return pd.concat(final_dfs)
@@ -123,22 +126,24 @@ def associate_annotations_with_alleles(annotation_df, clinical_alleles_df):
         else:
             all_results.extend([rows_first_match, rows_second_match])
 
-    final_result = pd.concat(all_results).drop_duplicates()
+    # Might associate the same variant annotation with a genotype/allele multiple times, so need to drop duplicates
+    final_result = pd.concat(all_results).drop_duplicates(subset=[GENOTYPE_ALLELE_COL_NAME, VAR_ID_COL_NAME])
 
+    # TODO This part is only useful for counts, think about whether we need it
     # If _no_ part of a variant annotation is associated with any clinical annotation, want this listed with nan's
-    for idx, row in split_ann_df.iterrows():
-        vaid = row[VAR_ID_COL_NAME]
-        alleles = row[BASE_ALLELE_COL_NAME]
-        split_1 = row['split_alleles_1']
-        split_2 = row['split_alleles_2']
-        results_with_vaid = final_result[final_result[VAR_ID_COL_NAME] == vaid]
-        if results_with_vaid.empty:
-            final_result = pd.concat((final_result,
-                                      merged_df[(merged_df[VAR_ID_COL_NAME] == vaid) & (
-                                                  merged_df[BASE_ALLELE_COL_NAME] == alleles) &
-                                                (merged_df['split_alleles_1'] == split_1) & (
-                                                            merged_df['split_alleles_2'] == split_2)]
-                                      ))
+    # for idx, row in split_ann_df.iterrows():
+    #     vaid = row[VAR_ID_COL_NAME]
+    #     alleles = row[BASE_ALLELE_COL_NAME]
+    #     split_1 = row['split_alleles_1']
+    #     split_2 = row['split_alleles_2']
+    #     results_with_vaid = final_result[final_result[VAR_ID_COL_NAME] == vaid]
+    #     if results_with_vaid.empty:
+    #         final_result = pd.concat((final_result,
+    #                                   merged_df[(merged_df[VAR_ID_COL_NAME] == vaid) & (
+    #                                               merged_df[BASE_ALLELE_COL_NAME] == alleles) &
+    #                                             (merged_df['split_alleles_1'] == split_1) & (
+    #                                                         merged_df['split_alleles_2'] == split_2)]
+    #                                   ))
     return final_result
 
 

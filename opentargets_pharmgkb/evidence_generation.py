@@ -365,7 +365,7 @@ def generate_clinical_annotation_evidence(so_accession_dict, created_date, row, 
         'datatypeId': 'clinical_annotation',
         'studyId': row[ID_COL_NAME],
         'evidenceLevel': row['Level of Evidence'],
-        'literature': [str(x) for x in row['all_publications']],
+        'literature': [str(x) for x in row['all_publications']],  # all PMIDs associated with the clinical annotation
 
         # GENOTYPE/ALLELE ATTRIBUTES
         'genotype': row[GENOTYPE_ALLELE_COL_NAME],
@@ -382,6 +382,7 @@ def generate_clinical_annotation_evidence(so_accession_dict, created_date, row, 
     if with_doe:
         evidence_string = add_direction_of_effect_attributes(row, evidence_string)
     # Remove the attributes with empty values (either None or empty lists).
+    # TODO needs to be hierarchical, or filter out nan values from the evidenceFromSource independently
     evidence_string = {key: value for key, value in evidence_string.items()
                        if value and (isinstance(value, list) or pd.notna(value))}
     return evidence_string
@@ -420,6 +421,7 @@ def add_direction_of_effect_attributes(row, evidence_string):
             row['PMID'], row[DOE_COL_NAME], row[EFFECT_COL_NAME], row[OBJECT_COL_NAME],
             row[BASE_ALLELE_COL_NAME], row[COMPARISON_COL_NAME], row['Sentence']
         )
+        if not all(pd.isna([pmid, doe, effect, obj, base_allele, comp_allele, sentence]))
     ]
     return evidence_string
 
