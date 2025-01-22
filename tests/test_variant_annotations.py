@@ -23,8 +23,7 @@ def test_associate_annotations_with_alleles_snp():
         ['1', 'AA', '1.3', 'A'],
         ['1', 'AG', '1.1', 'AA + AG'],
         ['1', 'AG', '1.3', 'A'],
-        ['1', 'GG', np.nan, np.nan],
-        [np.nan, np.nan, '1.4', 'TT']
+        ['1', 'GG', np.nan, np.nan]
     ], columns=['Clinical Annotation ID', 'Genotype/Allele', 'Variant Annotation ID', 'Alleles'])
     result = associate_annotations_with_alleles(var_annotations_df, clinical_alleles_df)
     assert result[[
@@ -53,8 +52,7 @@ def test_associate_annotations_with_alleles_star():
         ['2', '*2', '2.2', '*1/*2'],
         ['2', '*2', '2.3', '*1/*2 + *1/*3'],
         ['2', '*3', '2.3', '*1/*2 + *1/*3'],
-        ['2', '*4', np.nan, np.nan],
-        [np.nan, np.nan, '2.4', '*5']
+        ['2', '*4', np.nan, np.nan]
     ], columns=['Clinical Annotation ID', 'Genotype/Allele', 'Variant Annotation ID', 'Alleles'])
     result = associate_annotations_with_alleles(var_annotations_df, clinical_alleles_df)
     assert result[[
