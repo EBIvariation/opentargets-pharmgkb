@@ -14,8 +14,10 @@ from cmat.output_generation.consequence_type import get_so_accession_dict
 
 from opentargets_pharmgkb.counts import ClinicalAnnotationCounts
 from opentargets_pharmgkb.ontology_apis import get_efo_iri
-from opentargets_pharmgkb.pandas_utils import none_to_nan, split_and_explode_column, read_tsv_to_df
+from opentargets_pharmgkb.pandas_utils import none_to_nan, split_and_explode_column, read_tsv_to_df, nan_to_empty
 from opentargets_pharmgkb.validation import validate_evidence_string
+from opentargets_pharmgkb.variant_annotations import merge_variant_annotation_tables, get_variant_annotations, \
+    DOE_COL_NAME, EFFECT_COL_NAME, OBJECT_COL_NAME, COMPARISON_COL_NAME, BASE_ALLELE_COL_NAME
 from opentargets_pharmgkb.variant_coordinates import Fasta, parse_genotype
 
 logging.basicConfig()
@@ -23,32 +25,39 @@ logger = logging.getLogger(__package__)
 logger.setLevel(level=logging.DEBUG)
 
 ID_COL_NAME = 'Clinical Annotation ID'
+GENOTYPE_ALLELE_COL_NAME = 'Genotype/Allele'
+VARIANT_HAPLOTYPE_COL_NAME = 'Variant/Haplotypes'
 
 
-def pipeline(data_dir, fasta_path, created_date, output_path):
+def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
     clinical_annot_path = os.path.join(data_dir, 'clinical_annotations.tsv')
     clinical_alleles_path = os.path.join(data_dir, 'clinical_ann_alleles.tsv')
     clinical_evidence_path = os.path.join(data_dir, 'clinical_ann_evidence.tsv')
     variants_path = os.path.join(data_dir, 'variants.tsv')
     relationships_path = os.path.join(data_dir, 'relationships.tsv')
-    for p in (clinical_annot_path, clinical_alleles_path, clinical_evidence_path, variants_path):
-        if not os.path.exists(p):
-            logger.error(f'Missing required data file: {p}')
-            raise ValueError(f'Missing required data file: {p}')
+    var_drug_path = os.path.join(data_dir, 'var_drug_ann.tsv')
+    var_pheno_path = os.path.join(data_dir, 'var_pheno_ann.tsv')
+    check_data_files_present((clinical_annot_path, clinical_alleles_path, clinical_evidence_path, variants_path))
+    if with_doe:
+        check_data_files_present((var_drug_path, var_pheno_path))
 
     clinical_annot_table = read_tsv_to_df(clinical_annot_path)
     clinical_alleles_table = read_tsv_to_df(clinical_alleles_path)
     clinical_evidence_table = read_tsv_to_df(clinical_evidence_path)
     variants_table = read_tsv_to_df(variants_path)
     relationships_table = read_tsv_to_df(relationships_path)
+    if with_doe:
+        unified_var_ann_table = merge_variant_annotation_tables(read_tsv_to_df(var_drug_path),
+                                                                read_tsv_to_df(var_pheno_path))
 
     # Gather input counts
+    # TODO update counts for variant annotations/direction of effect
     counts = ClinicalAnnotationCounts()
     counts.clinical_annotations = len(clinical_annot_table)
-    counts.with_rs = len(clinical_annot_table[clinical_annot_table['Variant/Haplotypes'].str.startswith('rs')])
+    counts.with_rs = len(clinical_annot_table[clinical_annot_table[VARIANT_HAPLOTYPE_COL_NAME].str.startswith('rs')])
 
     # Main processing
-    merged_with_variants_table = pd.merge(clinical_annot_table, variants_table, left_on='Variant/Haplotypes',
+    merged_with_variants_table = pd.merge(clinical_annot_table, variants_table, left_on=VARIANT_HAPLOTYPE_COL_NAME,
                                           right_on='Variant Name', how='left')
     merged_with_alleles_table = pd.merge(merged_with_variants_table, clinical_alleles_table, on=ID_COL_NAME, how='left')
     counts.exploded_alleles = len(merged_with_alleles_table)
@@ -78,7 +87,10 @@ def pipeline(data_dir, fasta_path, created_date, output_path):
     # Add clinical evidence with PMIDs
     pmid_evidence = clinical_evidence_table[clinical_evidence_table['PMID'].notna()]
     evidence_table = pd.merge(consequences_table, pmid_evidence.groupby(by=ID_COL_NAME).aggregate(
-        publications=('PMID', list)), on=ID_COL_NAME)
+        all_publications=('PMID', list)), on=ID_COL_NAME)
+    if with_doe:
+        parsed_var_ann_df = get_variant_annotations(evidence_table, pmid_evidence, unified_var_ann_table)
+        evidence_table = pd.merge(evidence_table, parsed_var_ann_df, on=(ID_COL_NAME, GENOTYPE_ALLELE_COL_NAME))
 
     # Gather output counts
     counts.evidence_strings = len(evidence_table)
@@ -92,14 +104,15 @@ def pipeline(data_dir, fasta_path, created_date, output_path):
     so_accession_dict = get_so_accession_dict()
     so_accession_dict['no_sequence_alteration'] = 'SO_0002073'
     evidence = [
-        generate_clinical_annotation_evidence(so_accession_dict, created_date, row)
+        generate_clinical_annotation_evidence(so_accession_dict, created_date, row, with_doe)
         for _, row in evidence_table.iterrows()
     ]
     # Validate and write
     invalid_evidence = False
     with open(output_path, 'w+') as output:
         for ev_string in evidence:
-            if validate_evidence_string(ev_string):
+            # DoE evidence will not validate for now
+            if with_doe or validate_evidence_string(ev_string):
                 output.write(json.dumps(ev_string)+'\n')
             else:
                 invalid_evidence = True
@@ -114,8 +127,15 @@ def pipeline(data_dir, fasta_path, created_date, output_path):
         sys.exit(1)
 
 
+def check_data_files_present(paths):
+    for p in paths:
+        if not os.path.exists(p):
+            logger.error(f'Missing required data file: {p}')
+            raise ValueError(f'Missing required data file: {p}')
+
+
 def split_df_with_or_without_rs(df):
-    m = df['Variant/Haplotypes'].str.startswith('rs')
+    m = df[VARIANT_HAPLOTYPE_COL_NAME].str.startswith('rs')
     return df[m], df[~m]
 
 
@@ -134,15 +154,15 @@ def get_genotype_ids(df, fasta_path, counts=None):
     """
     fasta = Fasta(fasta_path)
     # First set a column with all genotypes for a given RS
-    df_with_ids = df.assign(parsed_genotype=df['Genotype/Allele'].apply(parse_genotype))
-    df_with_ids = pd.merge(df_with_ids, df_with_ids.groupby(by='Variant/Haplotypes').aggregate(
-        all_genotypes=('parsed_genotype', list)), on='Variant/Haplotypes')
+    df_with_ids = df.assign(parsed_genotype=df[GENOTYPE_ALLELE_COL_NAME].apply(parse_genotype))
+    df_with_ids = pd.merge(df_with_ids, df_with_ids.groupby(by=VARIANT_HAPLOTYPE_COL_NAME).aggregate(
+        all_genotypes=('parsed_genotype', list)), on=VARIANT_HAPLOTYPE_COL_NAME)
     # Get coordinates (chromosome, position, reference, and all alternate alleles) for each RS
     rs_to_coords = {}
-    for i, row in df_with_ids.drop_duplicates(['Variant/Haplotypes']).iterrows():
-        chrom, pos, ref, alleles_dict = fasta.get_chr_pos_ref(row['Variant/Haplotypes'], row['Location'],
+    for i, row in df_with_ids.drop_duplicates([VARIANT_HAPLOTYPE_COL_NAME]).iterrows():
+        chrom, pos, ref, alleles_dict = fasta.get_chr_pos_ref(row[VARIANT_HAPLOTYPE_COL_NAME], row['Location'],
                                                               row['all_genotypes'])
-        rs_to_coords[row['Variant/Haplotypes']] = (chrom, pos, ref, alleles_dict)
+        rs_to_coords[row[VARIANT_HAPLOTYPE_COL_NAME]] = (chrom, pos, ref, alleles_dict)
         # Generate per-variant counts, if applicable
         if not counts:
             continue
@@ -155,7 +175,7 @@ def get_genotype_ids(df, fasta_path, counts=None):
         counts.rs_with_more_than_2_alleles += 1
     # Use rs_to_coords to generate genotypeId for each genotype
     for i, row in df_with_ids.iterrows():
-        chrom, pos, ref, alleles_dict = rs_to_coords[row['Variant/Haplotypes']]
+        chrom, pos, ref, alleles_dict = rs_to_coords[row[VARIANT_HAPLOTYPE_COL_NAME]]
         if chrom and pos and ref and alleles_dict:
             df_with_ids.at[i, 'genotype_id'] = genotype_id(chrom, pos, ref, sorted([alleles_dict[a]
                                                                                     for a in row['parsed_genotype']]))
@@ -254,9 +274,9 @@ def get_haplotype_ids(df, relationships_table):
             # e.g. "CYP2D6" or "G6PD"
             single_gene['Gene']
             # whether to concatenate with a space or not
-            + np.where(single_gene['Genotype/Allele'].str.startswith('*'), '', ' ')
+            + np.where(single_gene[GENOTYPE_ALLELE_COL_NAME].str.startswith('*'), '', ' ')
             # e.g. "*3" or "A- 202A_376G"
-            + single_gene['Genotype/Allele']
+            + single_gene[GENOTYPE_ALLELE_COL_NAME]
     )
     # Fetch the internal haplotype ID
     single_gene['pgkb_haplotype_id'] = single_gene['haplotype_id'].apply(hap_id_to_pgkb_id, args=(relationships_table,))
@@ -334,7 +354,7 @@ def iri_to_code(iri):
     return iri.split('/')[-1] if iri and pd.notna(iri) and 'MPATH' not in iri else None
 
 
-def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
+def generate_clinical_annotation_evidence(so_accession_dict, created_date, row, with_doe):
     """Generates an evidence string for a PharmGKB clinical annotation."""
     partial_evidence_string = {
         # DATA SOURCE ATTRIBUTES
@@ -345,10 +365,10 @@ def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
         'datatypeId': 'clinical_annotation',
         'studyId': row[ID_COL_NAME],
         'evidenceLevel': row['Level of Evidence'],
-        'literature': [str(x) for x in row['publications']],
+        'literature': [str(x) for x in row['all_publications']],  # all PMIDs associated with the clinical annotation
 
         # GENOTYPE/ALLELE ATTRIBUTES
-        'genotype': row['Genotype/Allele'],
+        'genotype': row[GENOTYPE_ALLELE_COL_NAME],
         'genotypeAnnotationText': row['Annotation Text'],
         'directionality': row['Allele Function'],
 
@@ -359,6 +379,8 @@ def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
         'phenotypeFromSourceId': iri_to_code(row['efo'])
     }
     evidence_string = add_variant_haplotype_attributes(so_accession_dict, row, partial_evidence_string)
+    if with_doe:
+        evidence_string = add_direction_of_effect_attributes(row, evidence_string)
     # Remove the attributes with empty values (either None or empty lists).
     evidence_string = {key: value for key, value in evidence_string.items()
                        if value and (isinstance(value, list) or pd.notna(value))}
@@ -367,10 +389,10 @@ def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
 
 def add_variant_haplotype_attributes(so_accession_dict, row, evidence_string):
     """Adds attributes to the evidence string depending on whether the record is for an rsID variant or not."""
-    if row['Variant/Haplotypes'].startswith('rs'):
+    if row[VARIANT_HAPLOTYPE_COL_NAME].startswith('rs'):
         evidence_string.update({
             'genotypeId': row['genotype_id'],
-            'variantRsId': row['Variant/Haplotypes'],
+            'variantRsId': row[VARIANT_HAPLOTYPE_COL_NAME],
             'variantFunctionalConsequenceId': so_accession_dict.get(row['consequence_term'], None),
             'targetFromSourceId': row['overlapping_gene'],
         })
@@ -380,6 +402,31 @@ def add_variant_haplotype_attributes(so_accession_dict, row, evidence_string):
             'haplotypeFromSourceId': row['pgkb_haplotype_id'],
             'targetFromSourceId': row['gene_from_pgkb']
         })
+    return evidence_string
+
+
+def add_direction_of_effect_attributes(row, evidence_string):
+    evidence_string['evidenceFromSource'] = [
+        {
+            # Convert columns to a short summary statement, e.g. "increased metabolism of nicotine"
+            'directionOfEffect': ' '.join((nan_to_empty(doe), nan_to_empty(effect), nan_to_empty(obj))).strip(),
+            'baseAlleleOrGenotype': base_allele,
+            'comparisonAlleleOrGenotype': comp_allele,
+            'PMID': pmid,
+            'annotationText': sentence
+        }
+        # Note pandas groupby().aggregate(list) will preserve order, so the use of zip is safe
+        for pmid, doe, effect, obj, base_allele, comp_allele, sentence in zip(
+            row['PMID'], row[DOE_COL_NAME], row[EFFECT_COL_NAME], row[OBJECT_COL_NAME],
+            row[BASE_ALLELE_COL_NAME], row[COMPARISON_COL_NAME], row['Sentence']
+        )
+        if not all(pd.isna([pmid, doe, effect, obj, base_allele, comp_allele, sentence]))
+    ]
+    # Remove nan/none attributes from each item in the list
+    evidence_string['evidenceFromSource'] = [
+        {key: value for key, value in doe_obj.items() if value and pd.notna(value)}
+        for doe_obj in evidence_string['evidenceFromSource']
+    ]
     return evidence_string
 
 
