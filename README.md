@@ -41,7 +41,7 @@ cd ${BATCH_ROOT}
 wget https://api.pharmgkb.org/v1/download/file/data/clinicalAnnotations.zip
 wget https://api.pharmgkb.org/v1/download/file/data/variants.zip
 wget https://api.pharmgkb.org/v1/download/file/data/relationships.zip
-# Variant annotations only required with for direction of effect (--with_doe)
+# Variant annotations only required with for direction of effect (--with-doe)
 wget https://api.pharmgkb.org/v1/download/file/data/variantAnnotations.zip
 
 unzip -j clinicalAnnotations.zip "*.tsv" -d $DATA_DIR
@@ -49,7 +49,7 @@ unzip -j clinicalAnnotations.zip "CREATED*.txt" -d $DATA_DIR
 unzip -j variants.zip "*.tsv" -d $DATA_DIR
 unzip -j relationships.zip "*.tsv" -d $DATA_DIR
 unzip -j variantAnnotations.zip "*.tsv" -d $DATA_DIR
-rm clinicalAnnotations.zip variants.zip relationships.zip
+rm clinicalAnnotations.zip variants.zip relationships.zip variantAnnotations.zip
 
 # Set the created date
 export CREATED_DATE=`ls $DATA_DIR/CREATED*.txt | sed 's/.*\([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}\).*/\1/'`
