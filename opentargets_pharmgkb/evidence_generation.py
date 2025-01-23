@@ -51,7 +51,7 @@ def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
                                                                 read_tsv_to_df(var_pheno_path))
 
     # Gather input counts
-    # TODO think how to update counts
+    # TODO update counts for variant annotations/direction of effect
     counts = ClinicalAnnotationCounts()
     counts.clinical_annotations = len(clinical_annot_table)
     counts.with_rs = len(clinical_annot_table[clinical_annot_table[VARIANT_HAPLOTYPE_COL_NAME].str.startswith('rs')])
