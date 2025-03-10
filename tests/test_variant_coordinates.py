@@ -7,6 +7,7 @@ def test_parse_genotype():
     assert parse_genotype('TC') == ['T', 'C']
     assert parse_genotype('CAG/CAG') == ['CAG', 'CAG']
     assert parse_genotype('A/del') == ['A', 'DEL']
+    assert parse_genotype('(CA)2/(CA)3') == ['CACA', 'CACACA']
 
 
 def test_get_coordinates(fasta: Fasta):

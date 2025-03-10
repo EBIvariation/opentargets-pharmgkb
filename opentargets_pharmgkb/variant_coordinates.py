@@ -28,15 +28,26 @@ def parse_genotype(genotype_string):
         alleles.append(genotype_string[1])
 
     # short indels
-    m = re.match('([ACGT]+|del)/([ACGT]+|del)', genotype_string, re.IGNORECASE)
-    if m:
-        alleles.append(m.group(1))
-        alleles.append(m.group(2))
+    m_indel = re.match('([ACGT]+|del)/([ACGT]+|del)', genotype_string, re.IGNORECASE)
+    if m_indel:
+        alleles.append(m_indel.group(1))
+        alleles.append(m_indel.group(2))
+
+    # short tandem repeats - e.g. (CA)16/(CA)17
+    repeat_pattern = '\(([ACGT]+)\)([0-9]+)'
+    m_repeat = re.match(f'{repeat_pattern}/{repeat_pattern}', genotype_string, re.IGNORECASE)
+    if m_repeat:
+        alleles.append(expand_repeat(m_repeat.group(1), m_repeat.group(2)))
+        alleles.append(expand_repeat(m_repeat.group(3), m_repeat.group(4)))
 
     if not alleles:
         logger.error(f'Could not parse genotype {genotype_string}')
     # Normalise to uppercase before returning
     return [a.upper() for a in alleles]
+
+
+def expand_repeat(repeat_unit, num_repeats):
+    return repeat_unit * int(num_repeats)
 
 
 class Fasta:
