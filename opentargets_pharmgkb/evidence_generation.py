@@ -156,7 +156,7 @@ def get_genotype_ids(df, fasta_path, counts=None):
     # Use rs_to_coords to generate genotypeId for each genotype
     for i, row in df_with_ids.iterrows():
         chrom, pos, ref, alleles_dict = rs_to_coords[row['Variant/Haplotypes']]
-        if chrom and pos and ref and alleles_dict:
+        if chrom and pos and ref and alleles_dict and row['parsed_genotype']:
             df_with_ids.at[i, 'genotype_id'] = genotype_id(chrom, pos, ref, sorted([alleles_dict[a]
                                                                                     for a in row['parsed_genotype']]))
         else:
