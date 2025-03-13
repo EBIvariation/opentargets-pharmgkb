@@ -70,43 +70,52 @@ class Fasta:
         """
         if pd.isna(location):
             return None, None, None, None
-        chrom, pos = location.strip().split(':')
-        if not chrom or not pos:
+        chrom, pgkb_pos = location.strip().split(':')
+        if not chrom or not pgkb_pos:
             return None, None, None, None
         chrom_num = self.get_chrom_num_from_refseq(chrom)
 
         # Ranges are inclusive of both start and end
-        if '_' in pos:
-            start, end = pos.split('_')
-            start = int(start)
-            end = int(end)
+        if '_' in pgkb_pos:
+            pgkb_start, pgkb_end = pgkb_pos.split('_')
+            pgkb_start = int(pgkb_start)
+            pgkb_end = int(pgkb_end)
         else:
-            start = end = int(pos)
+            pgkb_start = pgkb_end = int(pgkb_pos)
 
         alleles_dict = {alt: alt for genotype in all_parsed_genotypes for alt in genotype}
         # Add context base for deletion alleles
         # This is the only normalisation needed for PGKB alleles, plus bookkeeping for the start/end coordinates
         if 'DEL' in alleles_dict:
-            if end == start:
-                end -= 1  # keep end == start if they began that way
-            start -= 1
-            alleles_dict = {allele: self.add_context_base(chrom, start, allele) for allele in alleles_dict}
+            if pgkb_end == pgkb_start:
+                pgkb_end -= 1  # keep end == start if they began that way
+            pgkb_start -= 1
+            alleles_dict = {allele: self.add_context_base(chrom, pgkb_start, allele) for allele in alleles_dict}
 
         if not alleles_dict:
             logger.warning(f'Could not parse any genotypes for {rsid}')
-            return chrom_num, start, None, None
+            return chrom_num, pgkb_start, None, None
         pgkb_alleles = alleles_dict.values()
 
         # First check for ref based on PGKB's coordinates
-        ref = self.get_ref_from_fasta(chrom, start, end)
+        ref = self.get_ref_from_fasta(chrom, pgkb_start, pgkb_end)
         if ref in pgkb_alleles:
-            return chrom_num, start, ref, alleles_dict
+            return chrom_num, pgkb_start, ref, alleles_dict
 
         # If could not determine ref from FASTA, use ref determined from NCBI & normalised
         logger.info(f'Ref from FASTA not in alleles: {rsid}\t{ref}\t{",".join(pgkb_alleles)}')
-        chrom, pos, ref = self.get_norm_coords_from_ncbi(rsid)
-        logger.info(f'Will use ref from NCBI: {ref}')
-        return chrom_num, pos, ref, alleles_dict
+        chrom, ncbi_pos, ncbi_ref = self.get_norm_coords_from_ncbi(rsid)
+        logger.info(f'Will use pos and ref from NCBI: {ncbi_pos}\t{ncbi_ref}')
+
+        # To determine alleles, compare normalised position from PGKB and NCBI
+        chrom, norm_pgkb_start, norm_pgkb_alleles = self.normalise(chrom, pgkb_start, pgkb_alleles)
+        # If the positions match, use PGKB's normalised alleles
+        if ncbi_pos == norm_pgkb_start:
+            return chrom_num, ncbi_pos, ncbi_ref, dict(zip(alleles_dict.keys(), norm_pgkb_alleles))
+        # Otherwise use the original PGKB alleles and warn
+        logger.warning(f'Normalised positions do not match ({ncbi_pos} != {norm_pgkb_start}), '
+                       f'will use original PGKB alleles')
+        return chrom_num, ncbi_pos, ncbi_ref, alleles_dict
 
     def get_norm_coords_from_ncbi(self, rsid):
         """

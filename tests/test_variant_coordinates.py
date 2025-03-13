@@ -57,6 +57,32 @@ def test_get_coordinates_not_match_reference_del(fasta: Fasta):
         assert result == ('21', 45537879, 'GTGC', {'TGC': 'GTGC', 'DEL': 'G'})
 
 
+def test_get_coordinates_not_match_reference_unnormalised_alleles(fasta: Fasta):
+    # Test scenario where reference from FASTA is not found and PGKB alleles are not normalised
+    # Mock NCBI response, so we can simulate an exact scenario on chr21 without searching for the right RS
+    with patch('opentargets_pharmgkb.variant_coordinates.get_spdi_coords_for_rsid') as m_spdi_coords:
+        # Definition of RS consists of adding 1 or 2 TTTA repeats at the beginning of the repeating section
+        m_spdi_coords.return_value = ('NC_000021.9', 7678480, 'T', ['TTTTA', 'TTTTATTTA'])
+
+        # Case 1: PGKB variant consists of inserting another copy of ATTT in the middle
+        result_pos_same = fasta.get_chr_pos_ref(
+            'rs1051266',
+            'NC_000021.9:7678489',
+            [['ATTT', 'ATTT'], ['ATTT', 'ATTTATTT'], ['ATTTATTT', 'ATTTATTT']]
+        )
+        # PGKB alleles normalise to the same position as NCBI gives us, so we use the normalised alleles
+        assert result_pos_same == ('21', 7678481, 'T', {'ATTT': 'T', 'ATTTATTT': 'TTTTA'})
+
+        # Case 2: PGKB variant consists of inserting ATT (not the repeat unit) in the middle
+        result_pos_diff = fasta.get_chr_pos_ref(
+            'rs1051266',
+            'NC_000021.9:7678489',
+            [['ATTT', 'ATTT'], ['ATTT', 'ATTTATT'], ['ATTTATT', 'ATTTATT']]
+        )
+        # PGKB alleles don't normalise to the same position, so we use the original alleles
+        assert result_pos_diff == ('21', 7678481, 'T', {'ATTT': 'ATTT', 'ATTTATT': 'ATTTATT'})
+
+
 def test_normalise(fasta: Fasta):
     # Section of chr21 consisting of ATTT repeats
     assert fasta.get_ref_from_fasta('NC_000021.9', 7678481, 7678480 + (10*4)) \
