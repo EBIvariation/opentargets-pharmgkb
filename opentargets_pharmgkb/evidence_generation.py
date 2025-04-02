@@ -408,8 +408,9 @@ def add_variant_haplotype_attributes(so_accession_dict, row, evidence_string):
 def add_direction_of_effect_attributes(row, evidence_string):
     evidence_string['evidenceFromSource'] = [
         {
-            # Convert columns to a short summary statement, e.g. "increased metabolism of nicotine"
-            'directionOfEffect': ' '.join((nan_to_empty(doe), nan_to_empty(effect), nan_to_empty(obj))).strip(),
+            'directionality': doe,
+            'effect': effect,
+            'entity': obj,
             'baseAlleleOrGenotype': base_allele,
             'comparisonAlleleOrGenotype': comp_allele,
             'PMID': pmid,
