@@ -85,9 +85,9 @@ def test_get_variant_annotations():
         ['AA', ['123', '456'], ['sentence', 'sentence'], ['AA + AG', 'AA'], ['increased', 'decreased'],
          ['metabolism of', 'response to'], ['nicotine', 'morphine'], [np.nan, 'AG + GG'], '1'],
         ['AG', ['123'], ['sentence'], ['AA + AG'], ['increased'], ['metabolism of'], ['nicotine'], [np.nan], '1'],
-        ['GG', [np.nan], [np.nan], [np.nan], [np.nan], [np.nan], [np.nan], [np.nan], '1'],
+        ['GG', [], [], [], [], [], [], [], '1'],
         ['*1', ['789'], ['sentence'], ['*1'], ['increased'], ['risk of'], ['vomiting'], ['*2'], '2'],
-        ['*2', [np.nan], [np.nan], [np.nan], [np.nan], [np.nan], [np.nan], [np.nan], '2']
+        ['*2', [], [], [], [], [], [], [], '2']
     ], columns=['Genotype/Allele', 'PMID', 'Sentence', 'Alleles', 'Direction of effect', 'effect_term', 'object_term',
                 'Comparison Allele(s) or Genotype(s)', 'Clinical Annotation ID'])
     result = get_variant_annotations(clinical_alleles_df, clinical_evidence_df, var_annotations_df)
