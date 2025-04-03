@@ -13,6 +13,10 @@ ASSOC_COL_NAME = 'Is/Is Not associated'
 DOE_COL_NAME = 'Direction of effect'
 BASE_ALLELE_COL_NAME = 'Alleles'
 COMPARISON_COL_NAME = 'Comparison Allele(s) or Genotype(s)'
+PMID_COL_NAME = 'PMID'
+VAR_ANN_SENTENCE_COL_NAME = 'Sentence'
+ALL_DOE_COLS = [PMID_COL_NAME, DOE_COL_NAME, EFFECT_COL_NAME, OBJECT_COL_NAME, BASE_ALLELE_COL_NAME,
+                COMPARISON_COL_NAME, VAR_ANN_SENTENCE_COL_NAME]
 
 
 def merge_variant_annotation_tables(var_drug_table, var_pheno_table):
@@ -74,12 +78,22 @@ def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, var_annot
     final_dfs = []
     for caid, df in results.items():
         new_df = df[[
-            GENOTYPE_ALLELE_COL_NAME, 'PMID', 'Sentence', BASE_ALLELE_COL_NAME,
+            GENOTYPE_ALLELE_COL_NAME, PMID_COL_NAME, VAR_ANN_SENTENCE_COL_NAME, BASE_ALLELE_COL_NAME,
             DOE_COL_NAME, EFFECT_COL_NAME, OBJECT_COL_NAME, COMPARISON_COL_NAME
         ]].groupby(GENOTYPE_ALLELE_COL_NAME, as_index=False).aggregate(list)
+        new_df[ALL_DOE_COLS] = new_df.apply(_remove_all_nans_from_doe_cols, axis=1, result_type='expand')
         new_df[ID_COL_NAME] = caid
         final_dfs.append(new_df)
     return pd.concat(final_dfs)
+
+
+def _remove_all_nans_from_doe_cols(row):
+    new_row = [[] for col in ALL_DOE_COLS]
+    for old_vals in zip(*[row[col] for col in ALL_DOE_COLS]):
+        if not pd.isna([old_vals]).all():
+            for i in range(len(new_row)):
+                new_row[i].append(old_vals[i])
+    return new_row
 
 
 def associate_annotations_with_alleles(annotation_df, clinical_alleles_df):
@@ -129,8 +143,9 @@ def associate_annotations_with_alleles(annotation_df, clinical_alleles_df):
     # Might associate the same variant annotation with a genotype/allele multiple times, so need to drop duplicates
     final_result = pd.concat(all_results).drop_duplicates(subset=[GENOTYPE_ALLELE_COL_NAME, VAR_ID_COL_NAME])
 
-    # TODO This part is only useful for counts, think about whether we need it
     # If _no_ part of a variant annotation is associated with any clinical annotation, want this listed with nan's
+    # This is used only for counts, as we don't report these variant annotations
+    # TODO restore this for counts
     # for idx, row in split_ann_df.iterrows():
     #     vaid = row[VAR_ID_COL_NAME]
     #     alleles = row[BASE_ALLELE_COL_NAME]
