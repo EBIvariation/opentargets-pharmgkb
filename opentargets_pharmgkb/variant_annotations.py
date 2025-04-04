@@ -1,5 +1,6 @@
 import re
 
+import numpy as np
 import pandas as pd
 
 from opentargets_pharmgkb.pandas_utils import split_and_explode_column
@@ -49,15 +50,18 @@ def merge_variant_annotation_tables(var_drug_table, var_pheno_table):
     return pd.concat((drug_df, phenotype_df))
 
 
-def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, var_annotations_df):
+def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, var_annotations_df, counts):
     """
     Main method for getting associations between clinical annotations and variant annotations.
 
     :param clinical_alleles_df: clinical annotation alleles dataframe
     :param clinical_evidence_df: clinical evidence dataframe, used to link clinical annotations and variant annotations
     :param var_annotations_df: variant annotation dataframe
+    :param counts: ClinicalAnnotationCounts object to tally variant annotation counts
     :return: dataframe describing associations between clinical annotations alleles and variant annotations
     """
+    counts.variant_annotations = len(var_annotations_df)
+    num_unmatched = 0
     caid_to_vaid = {
         caid: clinical_evidence_df[clinical_evidence_df[ID_COL_NAME] == caid]['Evidence ID'].to_list()
         for caid in clinical_evidence_df[ID_COL_NAME]
@@ -72,7 +76,9 @@ def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, var_annot
         variant_ann_for_caid = variant_ann_for_caid[
             variant_ann_for_caid[ASSOC_COL_NAME].str.lower() == 'associated with'
         ]
+        counts.matchable_variant_anns += len(variant_ann_for_caid)
         results[caid] = associate_annotations_with_alleles(variant_ann_for_caid, clinical_alleles_for_caid)
+        num_unmatched += len(results[caid][results[caid][ID_COL_NAME].isna()])
 
     # Re-assemble results into a single dataframe
     final_dfs = []
@@ -84,6 +90,8 @@ def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, var_annot
         new_df[ALL_DOE_COLS] = new_df.apply(_remove_all_nans_from_doe_cols, axis=1, result_type='expand')
         new_df[ID_COL_NAME] = caid
         final_dfs.append(new_df)
+
+    counts.matched_variant_anns = counts.matchable_variant_anns - num_unmatched
     return pd.concat(final_dfs)
 
 
@@ -145,20 +153,12 @@ def associate_annotations_with_alleles(annotation_df, clinical_alleles_df):
 
     # If _no_ part of a variant annotation is associated with any clinical annotation, want this listed with nan's
     # This is used only for counts, as we don't report these variant annotations
-    # TODO restore this for counts
-    # for idx, row in split_ann_df.iterrows():
-    #     vaid = row[VAR_ID_COL_NAME]
-    #     alleles = row[BASE_ALLELE_COL_NAME]
-    #     split_1 = row['split_alleles_1']
-    #     split_2 = row['split_alleles_2']
-    #     results_with_vaid = final_result[final_result[VAR_ID_COL_NAME] == vaid]
-    #     if results_with_vaid.empty:
-    #         final_result = pd.concat((final_result,
-    #                                   merged_df[(merged_df[VAR_ID_COL_NAME] == vaid) & (
-    #                                               merged_df[BASE_ALLELE_COL_NAME] == alleles) &
-    #                                             (merged_df['split_alleles_1'] == split_1) & (
-    #                                                         merged_df['split_alleles_2'] == split_2)]
-    #                                   ))
+    for idx, row in split_ann_df.iterrows():
+        vaid = row[VAR_ID_COL_NAME]
+        results_with_vaid = final_result[final_result[VAR_ID_COL_NAME] == vaid]
+        if results_with_vaid.empty:
+            final_result = pd.concat([final_result,
+                                      pd.DataFrame(pd.concat([pd.Series([np.nan, np.nan, np.nan]), row])).T])
     return final_result
 
 
