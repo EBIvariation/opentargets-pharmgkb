@@ -2,9 +2,7 @@ name: Open Targets PharmGKB pipelines
 
 on:
   pull_request:
-    branches: [ main ]
-  push:
-    branches: [ prototype ]
+    branches: [ main, doe-prototype ]
   workflow_dispatch:
 
 jobs:
