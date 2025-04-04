@@ -1,3 +1,4 @@
+biopython==1.85
 jsonschema==4.23.0
 numpy==1.26.0
 pandas==2.2.3
