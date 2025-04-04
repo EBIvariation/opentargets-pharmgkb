@@ -52,7 +52,6 @@ def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
                                                                 read_tsv_to_df(var_pheno_path))
 
     # Gather input counts
-    # TODO update counts for variant annotations/direction of effect
     counts = ClinicalAnnotationCounts()
     counts.clinical_annotations = len(clinical_annot_table)
     counts.with_rs = len(clinical_annot_table[clinical_annot_table[VARIANT_HAPLOTYPE_COL_NAME].str.startswith('rs')])
@@ -90,7 +89,7 @@ def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
     evidence_table = pd.merge(consequences_table, pmid_evidence.groupby(by=ID_COL_NAME).aggregate(
         all_publications=('PMID', list)), on=ID_COL_NAME)
     if with_doe:
-        parsed_var_ann_df = get_variant_annotations(evidence_table, pmid_evidence, unified_var_ann_table)
+        parsed_var_ann_df = get_variant_annotations(evidence_table, pmid_evidence, unified_var_ann_table, counts)
         evidence_table = pd.merge(evidence_table, parsed_var_ann_df, on=(ID_COL_NAME, GENOTYPE_ALLELE_COL_NAME))
 
     # Gather output counts
@@ -101,11 +100,11 @@ def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
     counts.with_haplotype = evidence_table['haplotype_id'].nunique()
     counts.resolved_haplotype_id = evidence_table['pgkb_haplotype_id'].nunique()
     if with_doe:
-        evidence_table['num_doe'] = evidence_table[DOE_COL_NAME].map(len)
-        counts.with_doe = evidence_table['num_doe'].count_nonzero()
-        counts.mean_num_doe = evidence_table[evidence_table['num_doe'] != 0].mean()
-        counts.median_num_doe = evidence_table[evidence_table['num_doe'] != 0].median()
-        counts.max_num_doe = evidence_table[evidence_table['num_doe'] != 0].max()
+        all_num_doe = evidence_table[DOE_COL_NAME].map(len)
+        counts.with_doe = all_num_doe[all_num_doe != 0].count()
+        counts.mean_num_doe = all_num_doe[all_num_doe != 0].mean()
+        counts.median_num_doe = all_num_doe[all_num_doe != 0].median()
+        counts.max_num_doe = all_num_doe[all_num_doe != 0].max()
 
     # Generate evidence
     so_accession_dict = get_so_accession_dict()

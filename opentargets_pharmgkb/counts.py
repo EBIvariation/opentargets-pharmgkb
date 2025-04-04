@@ -27,7 +27,10 @@ class ClinicalAnnotationCounts:
         self.mean_num_doe = 0
         self.median_num_doe = 0
         self.max_num_doe = 0
-
+        # Variant annotation counts
+        self.variant_annotations = 0
+        self.matchable_variant_anns = 0
+        self.matched_variant_anns = 0
         # Haplotype counts
         self.with_haplotype = 0
         self.resolved_haplotype_id = 0  # indicates we were able to resolve the haplotype to a PGKB internal ID
@@ -58,8 +61,11 @@ class ClinicalAnnotationCounts:
             report_str += (f'\tWith direction of effect annotation: {self.with_doe} '
                            f'({format_percent(self.with_doe, self.evidence_strings)})\n')
             report_str += f'\t\tMean per evidence string (when present): {self.mean_num_doe}\n'
-            report_str += f'\t\tMedian per evidence string (when present): {self.median_num_doe}\n'
-            report_str += f'\t\tMax per evidence string (when present): {self.max_num_doe}\n'
+            report_str += f'\t\tMedian per evidence string (when present): {int(self.median_num_doe)}\n'
+            report_str += f'\t\tMax per evidence string: {self.max_num_doe}\n'
+            report_str += f'Total variant annotations: {self.variant_annotations}\n'
+            report_str += f'\tMatchable variant annotations: {self.matchable_variant_anns}\n'
+            report_str += f'\t\tMatched variant annotations: {self.matched_variant_anns}\n'
         report_str += f'Total RS: {self.total_rs}\n'
         report_str += (f'\tWith parsed alleles: {self.rs_with_alleles} '
                        f'({format_percent(self.rs_with_alleles, self.total_rs)})\n')
