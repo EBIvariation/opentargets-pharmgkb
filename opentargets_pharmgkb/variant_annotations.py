@@ -8,6 +8,7 @@ from opentargets_pharmgkb.pandas_utils import split_and_explode_column
 ID_COL_NAME = 'Clinical Annotation ID'
 GENOTYPE_ALLELE_COL_NAME = 'Genotype/Allele'
 VAR_ID_COL_NAME = 'Variant Annotation ID'
+ANNOTATION_TYPE_COL_NAME = 'annotation_type'
 EFFECT_COL_NAME = 'effect_term'
 OBJECT_COL_NAME = 'object_term'
 ASSOC_COL_NAME = 'Is/Is Not associated'
@@ -17,7 +18,7 @@ COMPARISON_COL_NAME = 'Comparison Allele(s) or Genotype(s)'
 PMID_COL_NAME = 'PMID'
 VAR_ANN_SENTENCE_COL_NAME = 'Sentence'
 ALL_DOE_COLS = [PMID_COL_NAME, DOE_COL_NAME, EFFECT_COL_NAME, OBJECT_COL_NAME, BASE_ALLELE_COL_NAME,
-                COMPARISON_COL_NAME, VAR_ANN_SENTENCE_COL_NAME]
+                COMPARISON_COL_NAME, VAR_ANN_SENTENCE_COL_NAME, ANNOTATION_TYPE_COL_NAME]
 
 
 def merge_variant_annotation_tables(var_drug_table, var_pheno_table):
@@ -44,6 +45,9 @@ def merge_variant_annotation_tables(var_drug_table, var_pheno_table):
     drug_df = drug_df.rename(columns={'PD/PK terms': EFFECT_COL_NAME, 'Drug(s)': OBJECT_COL_NAME})
     phenotype_df = phenotype_df.rename(columns={'Side effect/efficacy/other': EFFECT_COL_NAME,
                                                 'Phenotype': OBJECT_COL_NAME})
+    # Add annotation type column
+    drug_df[ANNOTATION_TYPE_COL_NAME] = 'drug'
+    phenotype_df[ANNOTATION_TYPE_COL_NAME] = 'phenotype'
     # Strip type annotation (disease, side effect, etc.) from phenotype column - we might use this later but not now
     phenotype_df[OBJECT_COL_NAME] = phenotype_df[OBJECT_COL_NAME].dropna().apply(
         lambda p: p.split(':')[1] if ':' in p else p)
@@ -83,10 +87,8 @@ def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, var_annot
     # Re-assemble results into a single dataframe
     final_dfs = []
     for caid, df in results.items():
-        new_df = df[[
-            GENOTYPE_ALLELE_COL_NAME, PMID_COL_NAME, VAR_ANN_SENTENCE_COL_NAME, BASE_ALLELE_COL_NAME,
-            DOE_COL_NAME, EFFECT_COL_NAME, OBJECT_COL_NAME, COMPARISON_COL_NAME
-        ]].groupby(GENOTYPE_ALLELE_COL_NAME, as_index=False).aggregate(list)
+        new_df = df[
+            [GENOTYPE_ALLELE_COL_NAME] + ALL_DOE_COLS].groupby(GENOTYPE_ALLELE_COL_NAME, as_index=False).aggregate(list)
         new_df[ALL_DOE_COLS] = new_df.apply(_remove_all_nans_from_doe_cols, axis=1, result_type='expand')
         new_df[ID_COL_NAME] = caid
         final_dfs.append(new_df)
