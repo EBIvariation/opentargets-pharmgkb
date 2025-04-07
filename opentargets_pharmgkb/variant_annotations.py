@@ -72,7 +72,6 @@ def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, var_annot
     :param counts: ClinicalAnnotationCounts object to tally variant annotation counts
     :return: dataframe describing associations between clinical annotations alleles and variant annotations
     """
-    counts.variant_annotations = len(var_annotations_df)
     num_unmatched = 0
     caid_to_vaid = {
         caid: clinical_evidence_df[clinical_evidence_df[ID_COL_NAME] == caid]['Evidence ID'].to_list()
@@ -84,6 +83,8 @@ def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, var_annot
             ID_COL_NAME, GENOTYPE_ALLELE_COL_NAME
         ]]
         variant_ann_for_caid = var_annotations_df[var_annotations_df[VAR_ID_COL_NAME].isin(vaids)]
+        # Counts total number of variant annotations associated by PGKB with some clinical annotation
+        counts.variant_annotations += len(variant_ann_for_caid)
         # Filter for positive associations only
         variant_ann_for_caid = variant_ann_for_caid[
             variant_ann_for_caid[ASSOC_COL_NAME].str.lower() == 'associated with'
