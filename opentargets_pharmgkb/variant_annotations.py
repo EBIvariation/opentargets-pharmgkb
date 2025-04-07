@@ -21,16 +21,16 @@ ALL_DOE_COLS = [PMID_COL_NAME, DOE_COL_NAME, EFFECT_COL_NAME, OBJECT_COL_NAME, B
                 COMPARISON_COL_NAME, VAR_ANN_SENTENCE_COL_NAME, ANNOTATION_TYPE_COL_NAME]
 
 
-def merge_variant_annotation_tables(var_drug_table, var_pheno_table):
+def merge_variant_annotation_tables(var_drug_table, var_pheno_table, var_fa_table):
     """
     Return a single dataframe with selected columns from each variant annotation table.
 
     :param var_drug_table: variant drug annotation table
     :param var_pheno_table: variant phenotype annotation table
+    :param var_fa_table: variant functional analysis annotation table
     :return: unified variant annotation dataframe
     """
     # Select relevant columns
-    # TODO confirm which columns we want to include, and whether to include functional assay evidence
     drug_df = var_drug_table[[
         'Variant Annotation ID', 'PMID', 'Sentence', 'Alleles', 'Is/Is Not associated',
         'Direction of effect', 'PD/PK terms', 'Drug(s)',
@@ -41,17 +41,25 @@ def merge_variant_annotation_tables(var_drug_table, var_pheno_table):
         'Direction of effect', 'Side effect/efficacy/other', 'Phenotype',
         'Comparison Allele(s) or Genotype(s)'
     ]]
+    functional_df = var_fa_table[[
+        'Variant Annotation ID', 'PMID', 'Sentence', 'Alleles', 'Is/Is Not associated',
+        'Direction of effect', 'Functional terms', 'Gene/gene product',
+        'Comparison Allele(s) or Genotype(s)'
+    ]]
     # Rename differing columns so we can concat
     drug_df = drug_df.rename(columns={'PD/PK terms': EFFECT_COL_NAME, 'Drug(s)': OBJECT_COL_NAME})
     phenotype_df = phenotype_df.rename(columns={'Side effect/efficacy/other': EFFECT_COL_NAME,
                                                 'Phenotype': OBJECT_COL_NAME})
+    functional_df = functional_df.rename(columns={'Functional terms': EFFECT_COL_NAME,
+                                                  'Gene/gene product': OBJECT_COL_NAME})
     # Add annotation type column
     drug_df[ANNOTATION_TYPE_COL_NAME] = 'drug'
     phenotype_df[ANNOTATION_TYPE_COL_NAME] = 'phenotype'
+    functional_df[ANNOTATION_TYPE_COL_NAME] = 'functional'
     # Strip type annotation (disease, side effect, etc.) from phenotype column - we might use this later but not now
     phenotype_df[OBJECT_COL_NAME] = phenotype_df[OBJECT_COL_NAME].dropna().apply(
         lambda p: p.split(':')[1] if ':' in p else p)
-    return pd.concat((drug_df, phenotype_df))
+    return pd.concat((drug_df, phenotype_df, functional_df))
 
 
 def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, var_annotations_df, counts):

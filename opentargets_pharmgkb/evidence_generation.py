@@ -38,9 +38,10 @@ def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
     relationships_path = os.path.join(data_dir, 'relationships.tsv')
     var_drug_path = os.path.join(data_dir, 'var_drug_ann.tsv')
     var_pheno_path = os.path.join(data_dir, 'var_pheno_ann.tsv')
+    var_fa_path = os.path.join(data_dir, 'var_fa_ann.tsv')
     check_data_files_present((clinical_annot_path, clinical_alleles_path, clinical_evidence_path, variants_path))
     if with_doe:
-        check_data_files_present((var_drug_path, var_pheno_path))
+        check_data_files_present((var_drug_path, var_pheno_path, var_fa_path))
 
     clinical_annot_table = read_tsv_to_df(clinical_annot_path)
     clinical_alleles_table = read_tsv_to_df(clinical_alleles_path)
@@ -49,7 +50,8 @@ def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
     relationships_table = read_tsv_to_df(relationships_path)
     if with_doe:
         unified_var_ann_table = merge_variant_annotation_tables(read_tsv_to_df(var_drug_path),
-                                                                read_tsv_to_df(var_pheno_path))
+                                                                read_tsv_to_df(var_pheno_path),
+                                                                read_tsv_to_df(var_fa_path))
 
     # Gather input counts
     counts = ClinicalAnnotationCounts()
