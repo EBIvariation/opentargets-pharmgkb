@@ -29,6 +29,7 @@ class ClinicalAnnotationCounts:
         self.max_num_doe = 0
         # Variant annotation counts
         self.variant_annotations = 0
+        self.variant_anns_with_clinical_anns = 0
         self.matchable_variant_anns = 0
         self.matched_variant_anns = 0
         # Haplotype counts
@@ -57,13 +58,15 @@ class ClinicalAnnotationCounts:
         if self.with_doe > 0:
             report_str += (f'\tWith direction of effect annotation: '
                            f'{format_percent(self.with_doe, self.evidence_strings)}\n')
-            report_str += f'\t\tMean per evidence string (when present): {self.mean_num_doe}\n'
+            report_str += f'\t\tMean per evidence string (when present): {self.mean_num_doe:.2f}\n'
             report_str += f'\t\tMedian per evidence string (when present): {int(self.median_num_doe)}\n'
             report_str += f'\t\tMax per evidence string: {self.max_num_doe}\n'
             report_str += f'Total variant annotations: {self.variant_annotations}\n'
-            report_str += (f'\tMatchable variant annotations: '
-                           f'{format_percent(self.matchable_variant_anns, self.variant_annotations)}\n')
-            report_str += (f'\t\tMatched variant annotations: '
+            report_str += (f'\tAssociated to a clinical annotation: '
+                           f'{format_percent(self.variant_anns_with_clinical_anns, self.variant_annotations)}\n')
+            report_str += (f'\t\tMatchable by genotype: '
+                           f'{format_percent(self.matchable_variant_anns, self.variant_anns_with_clinical_anns)}\n')
+            report_str += (f'\t\t\tMatched by genotype: '
                            f'{format_percent(self.matched_variant_anns, self.matchable_variant_anns)}\n')
         report_str += f'Total RS: {self.total_rs}\n'
         report_str += f'\tWith parsed alleles: {format_percent(self.rs_with_alleles, self.total_rs)}\n'
