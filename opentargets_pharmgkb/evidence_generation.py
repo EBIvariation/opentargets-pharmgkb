@@ -17,7 +17,8 @@ from opentargets_pharmgkb.ontology_apis import get_efo_iri
 from opentargets_pharmgkb.pandas_utils import none_to_nan, split_and_explode_column, read_tsv_to_df, nan_to_empty
 from opentargets_pharmgkb.validation import validate_evidence_string
 from opentargets_pharmgkb.variant_annotations import merge_variant_annotation_tables, get_variant_annotations, \
-    DOE_COL_NAME, EFFECT_COL_NAME, OBJECT_COL_NAME, COMPARISON_COL_NAME, BASE_ALLELE_COL_NAME
+    DOE_COL_NAME, EFFECT_COL_NAME, OBJECT_COL_NAME, COMPARISON_COL_NAME, BASE_ALLELE_COL_NAME, PMID_COL_NAME, \
+    VAR_ANN_SENTENCE_COL_NAME, ANNOTATION_TYPE_COL_NAME
 from opentargets_pharmgkb.variant_coordinates import Fasta, parse_genotype
 
 logging.basicConfig()
@@ -37,9 +38,10 @@ def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
     relationships_path = os.path.join(data_dir, 'relationships.tsv')
     var_drug_path = os.path.join(data_dir, 'var_drug_ann.tsv')
     var_pheno_path = os.path.join(data_dir, 'var_pheno_ann.tsv')
+    var_fa_path = os.path.join(data_dir, 'var_fa_ann.tsv')
     check_data_files_present((clinical_annot_path, clinical_alleles_path, clinical_evidence_path, variants_path))
     if with_doe:
-        check_data_files_present((var_drug_path, var_pheno_path))
+        check_data_files_present((var_drug_path, var_pheno_path, var_fa_path))
 
     clinical_annot_table = read_tsv_to_df(clinical_annot_path)
     clinical_alleles_table = read_tsv_to_df(clinical_alleles_path)
@@ -48,10 +50,10 @@ def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
     relationships_table = read_tsv_to_df(relationships_path)
     if with_doe:
         unified_var_ann_table = merge_variant_annotation_tables(read_tsv_to_df(var_drug_path),
-                                                                read_tsv_to_df(var_pheno_path))
+                                                                read_tsv_to_df(var_pheno_path),
+                                                                read_tsv_to_df(var_fa_path))
 
     # Gather input counts
-    # TODO update counts for variant annotations/direction of effect
     counts = ClinicalAnnotationCounts()
     counts.clinical_annotations = len(clinical_annot_table)
     counts.with_rs = len(clinical_annot_table[clinical_annot_table[VARIANT_HAPLOTYPE_COL_NAME].str.startswith('rs')])
@@ -89,7 +91,7 @@ def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
     evidence_table = pd.merge(consequences_table, pmid_evidence.groupby(by=ID_COL_NAME).aggregate(
         all_publications=('PMID', list)), on=ID_COL_NAME)
     if with_doe:
-        parsed_var_ann_df = get_variant_annotations(evidence_table, pmid_evidence, unified_var_ann_table)
+        parsed_var_ann_df = get_variant_annotations(evidence_table, pmid_evidence, unified_var_ann_table, counts)
         evidence_table = pd.merge(evidence_table, parsed_var_ann_df, on=(ID_COL_NAME, GENOTYPE_ALLELE_COL_NAME))
 
     # Gather output counts
@@ -99,6 +101,12 @@ def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
     counts.with_target_gene = evidence_table['overlapping_gene'].count() + evidence_table['gene_from_pgkb'].count()
     counts.with_haplotype = evidence_table['haplotype_id'].nunique()
     counts.resolved_haplotype_id = evidence_table['pgkb_haplotype_id'].nunique()
+    if with_doe:
+        all_num_doe = evidence_table[DOE_COL_NAME].map(len)
+        counts.with_doe = all_num_doe[all_num_doe != 0].count()
+        counts.mean_num_doe = all_num_doe[all_num_doe != 0].mean()
+        counts.median_num_doe = all_num_doe[all_num_doe != 0].median()
+        counts.max_num_doe = all_num_doe[all_num_doe != 0].max()
 
     # Generate evidence
     so_accession_dict = get_so_accession_dict()
@@ -408,19 +416,22 @@ def add_variant_haplotype_attributes(so_accession_dict, row, evidence_string):
 def add_direction_of_effect_attributes(row, evidence_string):
     evidence_string['evidenceFromSource'] = [
         {
-            # Convert columns to a short summary statement, e.g. "increased metabolism of nicotine"
-            'directionOfEffect': ' '.join((nan_to_empty(doe), nan_to_empty(effect), nan_to_empty(obj))).strip(),
+            'directionality': doe,
+            'effect': effect,
+            'entity': obj,
             'baseAlleleOrGenotype': base_allele,
             'comparisonAlleleOrGenotype': comp_allele,
             'PMID': pmid,
-            'annotationText': sentence
+            'annotationText': sentence,
+            'annotationType': ann_type
         }
         # Note pandas groupby().aggregate(list) will preserve order, so the use of zip is safe
-        for pmid, doe, effect, obj, base_allele, comp_allele, sentence in zip(
-            row['PMID'], row[DOE_COL_NAME], row[EFFECT_COL_NAME], row[OBJECT_COL_NAME],
-            row[BASE_ALLELE_COL_NAME], row[COMPARISON_COL_NAME], row['Sentence']
+        for pmid, doe, effect, obj, base_allele, comp_allele, sentence, ann_type in zip(
+            row[PMID_COL_NAME], row[DOE_COL_NAME], row[EFFECT_COL_NAME], row[OBJECT_COL_NAME],
+            row[BASE_ALLELE_COL_NAME], row[COMPARISON_COL_NAME], row[VAR_ANN_SENTENCE_COL_NAME],
+            row[ANNOTATION_TYPE_COL_NAME]
         )
-        if not all(pd.isna([pmid, doe, effect, obj, base_allele, comp_allele, sentence]))
+        if not all(pd.isna([pmid, doe, effect, obj, base_allele, comp_allele, sentence, ann_type]))
     ]
     # Remove nan/none attributes from each item in the list
     evidence_string['evidenceFromSource'] = [

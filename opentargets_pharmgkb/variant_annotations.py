@@ -1,5 +1,6 @@
 import re
 
+import numpy as np
 import pandas as pd
 
 from opentargets_pharmgkb.pandas_utils import split_and_explode_column
@@ -7,24 +8,29 @@ from opentargets_pharmgkb.pandas_utils import split_and_explode_column
 ID_COL_NAME = 'Clinical Annotation ID'
 GENOTYPE_ALLELE_COL_NAME = 'Genotype/Allele'
 VAR_ID_COL_NAME = 'Variant Annotation ID'
+ANNOTATION_TYPE_COL_NAME = 'annotation_type'
 EFFECT_COL_NAME = 'effect_term'
 OBJECT_COL_NAME = 'object_term'
 ASSOC_COL_NAME = 'Is/Is Not associated'
 DOE_COL_NAME = 'Direction of effect'
 BASE_ALLELE_COL_NAME = 'Alleles'
 COMPARISON_COL_NAME = 'Comparison Allele(s) or Genotype(s)'
+PMID_COL_NAME = 'PMID'
+VAR_ANN_SENTENCE_COL_NAME = 'Sentence'
+ALL_DOE_COLS = [PMID_COL_NAME, DOE_COL_NAME, EFFECT_COL_NAME, OBJECT_COL_NAME, BASE_ALLELE_COL_NAME,
+                COMPARISON_COL_NAME, VAR_ANN_SENTENCE_COL_NAME, ANNOTATION_TYPE_COL_NAME]
 
 
-def merge_variant_annotation_tables(var_drug_table, var_pheno_table):
+def merge_variant_annotation_tables(var_drug_table, var_pheno_table, var_fa_table):
     """
     Return a single dataframe with selected columns from each variant annotation table.
 
     :param var_drug_table: variant drug annotation table
     :param var_pheno_table: variant phenotype annotation table
+    :param var_fa_table: variant functional analysis annotation table
     :return: unified variant annotation dataframe
     """
     # Select relevant columns
-    # TODO confirm which columns we want to include, and whether to include functional assay evidence
     drug_df = var_drug_table[[
         'Variant Annotation ID', 'PMID', 'Sentence', 'Alleles', 'Is/Is Not associated',
         'Direction of effect', 'PD/PK terms', 'Drug(s)',
@@ -35,25 +41,39 @@ def merge_variant_annotation_tables(var_drug_table, var_pheno_table):
         'Direction of effect', 'Side effect/efficacy/other', 'Phenotype',
         'Comparison Allele(s) or Genotype(s)'
     ]]
+    functional_df = var_fa_table[[
+        'Variant Annotation ID', 'PMID', 'Sentence', 'Alleles', 'Is/Is Not associated',
+        'Direction of effect', 'Functional terms', 'Gene/gene product',
+        'Comparison Allele(s) or Genotype(s)'
+    ]]
     # Rename differing columns so we can concat
     drug_df = drug_df.rename(columns={'PD/PK terms': EFFECT_COL_NAME, 'Drug(s)': OBJECT_COL_NAME})
     phenotype_df = phenotype_df.rename(columns={'Side effect/efficacy/other': EFFECT_COL_NAME,
                                                 'Phenotype': OBJECT_COL_NAME})
+    functional_df = functional_df.rename(columns={'Functional terms': EFFECT_COL_NAME,
+                                                  'Gene/gene product': OBJECT_COL_NAME})
+    # Add annotation type column
+    drug_df[ANNOTATION_TYPE_COL_NAME] = 'drug'
+    phenotype_df[ANNOTATION_TYPE_COL_NAME] = 'phenotype'
+    functional_df[ANNOTATION_TYPE_COL_NAME] = 'functional'
     # Strip type annotation (disease, side effect, etc.) from phenotype column - we might use this later but not now
     phenotype_df[OBJECT_COL_NAME] = phenotype_df[OBJECT_COL_NAME].dropna().apply(
         lambda p: p.split(':')[1] if ':' in p else p)
-    return pd.concat((drug_df, phenotype_df))
+    return pd.concat((drug_df, phenotype_df, functional_df))
 
 
-def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, var_annotations_df):
+def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, var_annotations_df, counts):
     """
     Main method for getting associations between clinical annotations and variant annotations.
 
     :param clinical_alleles_df: clinical annotation alleles dataframe
     :param clinical_evidence_df: clinical evidence dataframe, used to link clinical annotations and variant annotations
     :param var_annotations_df: variant annotation dataframe
+    :param counts: ClinicalAnnotationCounts object to tally variant annotation counts
     :return: dataframe describing associations between clinical annotations alleles and variant annotations
     """
+    counts.variant_annotations = len(var_annotations_df)
+    num_unmatched = 0
     caid_to_vaid = {
         caid: clinical_evidence_df[clinical_evidence_df[ID_COL_NAME] == caid]['Evidence ID'].to_list()
         for caid in clinical_evidence_df[ID_COL_NAME]
@@ -64,22 +84,36 @@ def get_variant_annotations(clinical_alleles_df, clinical_evidence_df, var_annot
             ID_COL_NAME, GENOTYPE_ALLELE_COL_NAME
         ]]
         variant_ann_for_caid = var_annotations_df[var_annotations_df[VAR_ID_COL_NAME].isin(vaids)]
+        # Counts total number of variant annotations associated by PGKB with some clinical annotation
+        counts.variant_anns_with_clinical_anns += len(variant_ann_for_caid)
         # Filter for positive associations only
         variant_ann_for_caid = variant_ann_for_caid[
             variant_ann_for_caid[ASSOC_COL_NAME].str.lower() == 'associated with'
         ]
+        counts.matchable_variant_anns += len(variant_ann_for_caid)
         results[caid] = associate_annotations_with_alleles(variant_ann_for_caid, clinical_alleles_for_caid)
+        num_unmatched += len(results[caid][results[caid][ID_COL_NAME].isna()])
 
     # Re-assemble results into a single dataframe
     final_dfs = []
     for caid, df in results.items():
-        new_df = df[[
-            GENOTYPE_ALLELE_COL_NAME, 'PMID', 'Sentence', BASE_ALLELE_COL_NAME,
-            DOE_COL_NAME, EFFECT_COL_NAME, OBJECT_COL_NAME, COMPARISON_COL_NAME
-        ]].groupby(GENOTYPE_ALLELE_COL_NAME, as_index=False).aggregate(list)
+        new_df = df[
+            [GENOTYPE_ALLELE_COL_NAME] + ALL_DOE_COLS].groupby(GENOTYPE_ALLELE_COL_NAME, as_index=False).aggregate(list)
+        new_df[ALL_DOE_COLS] = new_df.apply(_remove_all_nans_from_doe_cols, axis=1, result_type='expand')
         new_df[ID_COL_NAME] = caid
         final_dfs.append(new_df)
+
+    counts.matched_variant_anns = counts.matchable_variant_anns - num_unmatched
     return pd.concat(final_dfs)
+
+
+def _remove_all_nans_from_doe_cols(row):
+    new_row = [[] for col in ALL_DOE_COLS]
+    for old_vals in zip(*[row[col] for col in ALL_DOE_COLS]):
+        if not pd.isna([old_vals]).all():
+            for i in range(len(new_row)):
+                new_row[i].append(old_vals[i])
+    return new_row
 
 
 def associate_annotations_with_alleles(annotation_df, clinical_alleles_df):
@@ -129,21 +163,14 @@ def associate_annotations_with_alleles(annotation_df, clinical_alleles_df):
     # Might associate the same variant annotation with a genotype/allele multiple times, so need to drop duplicates
     final_result = pd.concat(all_results).drop_duplicates(subset=[GENOTYPE_ALLELE_COL_NAME, VAR_ID_COL_NAME])
 
-    # TODO This part is only useful for counts, think about whether we need it
     # If _no_ part of a variant annotation is associated with any clinical annotation, want this listed with nan's
-    # for idx, row in split_ann_df.iterrows():
-    #     vaid = row[VAR_ID_COL_NAME]
-    #     alleles = row[BASE_ALLELE_COL_NAME]
-    #     split_1 = row['split_alleles_1']
-    #     split_2 = row['split_alleles_2']
-    #     results_with_vaid = final_result[final_result[VAR_ID_COL_NAME] == vaid]
-    #     if results_with_vaid.empty:
-    #         final_result = pd.concat((final_result,
-    #                                   merged_df[(merged_df[VAR_ID_COL_NAME] == vaid) & (
-    #                                               merged_df[BASE_ALLELE_COL_NAME] == alleles) &
-    #                                             (merged_df['split_alleles_1'] == split_1) & (
-    #                                                         merged_df['split_alleles_2'] == split_2)]
-    #                                   ))
+    # This is used only for counts, as we don't report these variant annotations
+    for idx, row in split_ann_df.iterrows():
+        vaid = row[VAR_ID_COL_NAME]
+        results_with_vaid = final_result[final_result[VAR_ID_COL_NAME] == vaid]
+        if results_with_vaid.empty:
+            final_result = pd.concat([final_result,
+                                      pd.DataFrame(pd.concat([pd.Series([np.nan, np.nan, np.nan]), row])).T])
     return final_result
 
 

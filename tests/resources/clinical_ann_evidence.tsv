@@ -110,4 +110,4 @@ Clinical Annotation ID	Evidence ID	Evidence Type	Evidence URL	PMID	Summary	Score
 1447979749	1446903951	Variant Drug Annotation	https://www.pharmgkb.org/variantAnnotation/1446903951	24973281	Genotype del/del is associated with response to ivacaftor / lumacaftor in people with Cystic Fibrosis.	2.5
 1447979749	1446903975	Variant Drug Annotation	https://www.pharmgkb.org/variantAnnotation/1446903975	24973281	Genotype CTT/del is not associated with response to ivacaftor / lumacaftor in people with Cystic Fibrosis.	-0.375
 1447979749	1448107229	Variant Drug Annotation	https://www.pharmgkb.org/variantAnnotation/1448107229	27298017	Genotype del/del is associated with increased response to ivacaftor / lumacaftor in people with Cystic Fibrosis as compared to genotypes CTT/CTT + CTT/del.	2.5
-
+1447979749	1451123748	Variant Functional Assay Annotation	https://www.pharmgkb.org/variantAnnotation/1451123748	23275066	Allele del is associated with decreased catalytic activity of CES1 when assayed with 2-oxo-clopidogrel or clopidogrel as compared to allele CTT.	0.0

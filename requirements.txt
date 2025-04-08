@@ -1,6 +1,7 @@
-jsonschema==3.2.0
-numpy==1.24.3
-pandas==1.5.3
+biopython==1.85
+jsonschema==4.23.0
+numpy==1.26.0
+pandas==2.2.3
 pytest==7.2.2
 requests==2.32.3
 retry==0.9.2
