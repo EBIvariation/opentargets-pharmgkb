@@ -414,16 +414,16 @@ def add_variant_haplotype_attributes(so_accession_dict, row, evidence_string):
 
 
 def add_direction_of_effect_attributes(row, evidence_string):
-    evidence_string['evidenceFromSource'] = [
+    evidence_string['variantAnnotation'] = [
         {
             'directionality': doe,
             'effect': effect,
             'entity': obj,
             'baseAlleleOrGenotype': base_allele,
             'comparisonAlleleOrGenotype': comp_allele,
-            'PMID': pmid,
-            'annotationText': sentence,
-            'annotationType': ann_type
+            'literature': pmid,
+            'effectDescription': sentence,
+            'effectType': ann_type
         }
         # Note pandas groupby().aggregate(list) will preserve order, so the use of zip is safe
         for pmid, doe, effect, obj, base_allele, comp_allele, sentence, ann_type in zip(
@@ -434,9 +434,9 @@ def add_direction_of_effect_attributes(row, evidence_string):
         if not all(pd.isna([pmid, doe, effect, obj, base_allele, comp_allele, sentence, ann_type]))
     ]
     # Remove nan/none attributes from each item in the list
-    evidence_string['evidenceFromSource'] = [
+    evidence_string['variantAnnotation'] = [
         {key: value for key, value in doe_obj.items() if value and pd.notna(value)}
-        for doe_obj in evidence_string['evidenceFromSource']
+        for doe_obj in evidence_string['variantAnnotation']
     ]
     return evidence_string
 
