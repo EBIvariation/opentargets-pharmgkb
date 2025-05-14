@@ -119,8 +119,7 @@ def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
     invalid_evidence = False
     with open(output_path, 'w+') as output:
         for ev_string in evidence:
-            # DoE evidence will not validate for now
-            if with_doe or validate_evidence_string(ev_string):
+            if validate_evidence_string(ev_string):
                 output.write(json.dumps(ev_string)+'\n')
             else:
                 invalid_evidence = True
