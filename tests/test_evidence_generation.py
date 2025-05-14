@@ -113,3 +113,21 @@ def test_pipeline_missing_file():
             created_date='2023-03-23',
             output_path=output_path
         )
+
+
+def test_pipeline_with_doe():
+    output_path = os.path.join(resources_dir, 'test_output.json')
+    expected_path = os.path.join(resources_dir, 'expected_doe_output.json')
+    evidence_generation.pipeline(
+        data_dir=resources_dir,
+        fasta_path=fasta_path,
+        created_date='2023-03-23',
+        output_path=output_path,
+        with_doe=True
+    )
+
+    with open(output_path) as test_output, open(expected_path) as expected_output:
+        assert sorted(test_output.readlines()) == sorted(expected_output.readlines())
+
+    if os.path.exists(output_path):
+        os.remove(output_path)
