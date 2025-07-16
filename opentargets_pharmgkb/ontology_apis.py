@@ -20,6 +20,11 @@ zooma_filters = {'ontologies': 'efo,ordo,hp,mondo',
                  'preferred': 'eva-clinvar,cttv,gwas,clinvar-xrefs'}
 oxo_targets = ['Orphanet', 'efo', 'hp', 'mondo']
 oxo_distance = 1
+# Only used for finished mappings, so no need to search synonyms or other ontologies
+ols_query_fields = 'label'
+ols_field_list = 'iri,label'
+target_ontology = 'EFO'
+preferred_ontologies = [target_ontology]
 
 
 def get_chebi_iri(drug_name):
@@ -34,7 +39,8 @@ def get_efo_iri(phenotype_name):
 
     # Trait to store Zooma/OxO results - other attributes not used
     trait = Trait(phenotype_name, None, None)
-    processed_trait = process_trait(trait, zooma_filters, HOST, oxo_targets, oxo_distance)
+    processed_trait = process_trait(trait, zooma_filters, HOST, oxo_targets, oxo_distance,
+                                    ols_query_fields, ols_field_list, target_ontology, preferred_ontologies)
     if processed_trait.is_finished:
         efo_uris = [ontology_entry.uri for ontology_entry in processed_trait.finished_mapping_set]
         if len(efo_uris) > 1:
