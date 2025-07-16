@@ -18,7 +18,7 @@ from opentargets_pharmgkb.pandas_utils import none_to_nan, split_and_explode_col
 from opentargets_pharmgkb.validation import validate_evidence_string
 from opentargets_pharmgkb.variant_annotations import merge_variant_annotation_tables, get_variant_annotations, \
     DOE_COL_NAME, EFFECT_COL_NAME, OBJECT_COL_NAME, COMPARISON_COL_NAME, BASE_ALLELE_COL_NAME, PMID_COL_NAME, \
-    VAR_ANN_SENTENCE_COL_NAME, ANNOTATION_TYPE_COL_NAME
+    VAR_ANN_SENTENCE_COL_NAME, ANNOTATION_TYPE_COL_NAME, VAR_ID_COL_NAME
 from opentargets_pharmgkb.variant_coordinates import Fasta, parse_genotype
 
 logging.basicConfig()
@@ -414,6 +414,7 @@ def add_variant_haplotype_attributes(so_accession_dict, row, evidence_string):
 def add_direction_of_effect_attributes(row, evidence_string):
     evidence_string['variantAnnotation'] = [
         {
+            'id': var_ann_id,
             'directionality': doe,
             'effect': effect,
             'entity': obj,
@@ -424,8 +425,8 @@ def add_direction_of_effect_attributes(row, evidence_string):
             'effectType': ann_type
         }
         # Note pandas groupby().aggregate(list) will preserve order, so the use of zip is safe
-        for pmid, doe, effect, obj, base_allele, comp_allele, sentence, ann_type in zip(
-            row[PMID_COL_NAME], row[DOE_COL_NAME], row[EFFECT_COL_NAME], row[OBJECT_COL_NAME],
+        for var_ann_id, pmid, doe, effect, obj, base_allele, comp_allele, sentence, ann_type in zip(
+            row[VAR_ID_COL_NAME], row[PMID_COL_NAME], row[DOE_COL_NAME], row[EFFECT_COL_NAME], row[OBJECT_COL_NAME],
             row[BASE_ALLELE_COL_NAME], row[COMPARISON_COL_NAME], row[VAR_ANN_SENTENCE_COL_NAME],
             row[ANNOTATION_TYPE_COL_NAME]
         )
