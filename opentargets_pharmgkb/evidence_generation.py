@@ -30,7 +30,7 @@ GENOTYPE_ALLELE_COL_NAME = 'Genotype/Allele'
 VARIANT_HAPLOTYPE_COL_NAME = 'Variant/Haplotypes'
 
 
-def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
+def pipeline(data_dir, fasta_path, created_date, output_path):
     clinical_annot_path = os.path.join(data_dir, 'clinical_annotations.tsv')
     clinical_alleles_path = os.path.join(data_dir, 'clinical_ann_alleles.tsv')
     clinical_evidence_path = os.path.join(data_dir, 'clinical_ann_evidence.tsv')
@@ -39,19 +39,17 @@ def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
     var_drug_path = os.path.join(data_dir, 'var_drug_ann.tsv')
     var_pheno_path = os.path.join(data_dir, 'var_pheno_ann.tsv')
     var_fa_path = os.path.join(data_dir, 'var_fa_ann.tsv')
-    check_data_files_present((clinical_annot_path, clinical_alleles_path, clinical_evidence_path, variants_path))
-    if with_doe:
-        check_data_files_present((var_drug_path, var_pheno_path, var_fa_path))
+    check_data_files_present((clinical_annot_path, clinical_alleles_path, clinical_evidence_path, variants_path,
+                              var_drug_path, var_pheno_path, var_fa_path))
 
     clinical_annot_table = read_tsv_to_df(clinical_annot_path)
     clinical_alleles_table = read_tsv_to_df(clinical_alleles_path)
     clinical_evidence_table = read_tsv_to_df(clinical_evidence_path)
     variants_table = read_tsv_to_df(variants_path)
     relationships_table = read_tsv_to_df(relationships_path)
-    if with_doe:
-        unified_var_ann_table = merge_variant_annotation_tables(read_tsv_to_df(var_drug_path),
-                                                                read_tsv_to_df(var_pheno_path),
-                                                                read_tsv_to_df(var_fa_path))
+    unified_var_ann_table = merge_variant_annotation_tables(read_tsv_to_df(var_drug_path),
+                                                            read_tsv_to_df(var_pheno_path),
+                                                            read_tsv_to_df(var_fa_path))
 
     # Gather input counts
     counts = ClinicalAnnotationCounts()
@@ -90,9 +88,10 @@ def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
     pmid_evidence = clinical_evidence_table[clinical_evidence_table['PMID'].notna()]
     evidence_table = pd.merge(consequences_table, pmid_evidence.groupby(by=ID_COL_NAME).aggregate(
         all_publications=('PMID', list)), on=ID_COL_NAME)
-    if with_doe:
-        parsed_var_ann_df = get_variant_annotations(evidence_table, pmid_evidence, unified_var_ann_table, counts)
-        evidence_table = pd.merge(evidence_table, parsed_var_ann_df, on=(ID_COL_NAME, GENOTYPE_ALLELE_COL_NAME))
+
+    # Add variant annotations
+    parsed_var_ann_df = get_variant_annotations(evidence_table, pmid_evidence, unified_var_ann_table, counts)
+    evidence_table = pd.merge(evidence_table, parsed_var_ann_df, on=(ID_COL_NAME, GENOTYPE_ALLELE_COL_NAME))
 
     # Gather output counts
     counts.evidence_strings = len(evidence_table)
@@ -101,18 +100,19 @@ def pipeline(data_dir, fasta_path, created_date, output_path, with_doe=False):
     counts.with_target_gene = evidence_table['overlapping_gene'].count() + evidence_table['gene_from_pgkb'].count()
     counts.with_haplotype = evidence_table['haplotype_id'].nunique()
     counts.resolved_haplotype_id = evidence_table['pgkb_haplotype_id'].nunique()
-    if with_doe:
-        all_num_doe = evidence_table[DOE_COL_NAME].map(len)
-        counts.with_doe = all_num_doe[all_num_doe != 0].count()
-        counts.mean_num_doe = all_num_doe[all_num_doe != 0].mean()
-        counts.median_num_doe = all_num_doe[all_num_doe != 0].median()
-        counts.max_num_doe = all_num_doe[all_num_doe != 0].max()
+
+    # DoE / variant annotation counts
+    all_num_doe = evidence_table[DOE_COL_NAME].map(len)
+    counts.with_doe = all_num_doe[all_num_doe != 0].count()
+    counts.mean_num_doe = all_num_doe[all_num_doe != 0].mean()
+    counts.median_num_doe = all_num_doe[all_num_doe != 0].median()
+    counts.max_num_doe = all_num_doe[all_num_doe != 0].max()
 
     # Generate evidence
     so_accession_dict = get_so_accession_dict()
     so_accession_dict['no_sequence_alteration'] = 'SO_0002073'
     evidence = [
-        generate_clinical_annotation_evidence(so_accession_dict, created_date, row, with_doe)
+        generate_clinical_annotation_evidence(so_accession_dict, created_date, row)
         for _, row in evidence_table.iterrows()
     ]
     # Validate and write
@@ -361,7 +361,7 @@ def iri_to_code(iri):
     return iri.split('/')[-1] if iri and pd.notna(iri) and 'MPATH' not in iri else None
 
 
-def generate_clinical_annotation_evidence(so_accession_dict, created_date, row, with_doe):
+def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
     """Generates an evidence string for a PharmGKB clinical annotation."""
     partial_evidence_string = {
         # DATA SOURCE ATTRIBUTES
@@ -386,8 +386,7 @@ def generate_clinical_annotation_evidence(so_accession_dict, created_date, row, 
         'phenotypeFromSourceId': iri_to_code(row['efo'])
     }
     evidence_string = add_variant_haplotype_attributes(so_accession_dict, row, partial_evidence_string)
-    if with_doe:
-        evidence_string = add_direction_of_effect_attributes(row, evidence_string)
+    evidence_string = add_direction_of_effect_attributes(row, evidence_string)
     # Remove the attributes with empty values (either None or empty lists).
     evidence_string = {key: value for key, value in evidence_string.items()
                        if value and (isinstance(value, list) or pd.notna(value))}
