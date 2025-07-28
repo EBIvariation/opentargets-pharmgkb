@@ -88,13 +88,13 @@ def test_get_variant_annotations():
         ['2', '2.3']
     ], columns=['Clinical Annotation ID', 'Evidence ID'])
     expected_df = pd.DataFrame([
-        ['AA', ['123', '456'], ['sentence', 'sentence'], ['AA + AG', 'AA'], ['increased', 'decreased'],
+        ['AA', ['1.1', '1.2'], ['123', '456'], ['sentence', 'sentence'], ['AA + AG', 'AA'], ['increased', 'decreased'],
          ['metabolism of', 'response to'], ['nicotine', 'morphine'], [np.nan, 'AG + GG'], ['drug', 'drug'], '1'],
-        ['AG', ['123'], ['sentence'], ['AA + AG'], ['increased'], ['metabolism of'], ['nicotine'], [np.nan], ['drug'], '1'],
-        ['GG', [], [], [], [], [], [], [], [], '1'],
-        ['*1', ['789'], ['sentence'], ['*1'], ['increased'], ['risk of'], ['vomiting'], ['*2'], ['phenotype'], '2'],
-        ['*2', [], [], [], [], [], [], [], [], '2']
-    ], columns=['Genotype/Allele', 'PMID', 'Sentence', 'Alleles', 'Direction of effect', 'effect_term', 'object_term',
+        ['AG', ['1.1'], ['123'], ['sentence'], ['AA + AG'], ['increased'], ['metabolism of'], ['nicotine'], [np.nan], ['drug'], '1'],
+        ['GG', [], [], [], [], [], [], [], [], [], '1'],
+        ['*1', ['2.1'], ['789'], ['sentence'], ['*1'], ['increased'], ['risk of'], ['vomiting'], ['*2'], ['phenotype'], '2'],
+        ['*2', [], [], [], [], [], [], [], [], [], '2']
+    ], columns=['Genotype/Allele', 'Variant Annotation ID', 'PMID', 'Sentence', 'Alleles', 'Direction of effect', 'effect_term', 'object_term',
                 'Comparison Allele(s) or Genotype(s)', 'annotation_type', 'Clinical Annotation ID'])
     counts = ClinicalAnnotationCounts()
     result = get_variant_annotations(clinical_alleles_df, clinical_evidence_df, var_annotations_df, counts)
