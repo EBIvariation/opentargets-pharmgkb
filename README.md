@@ -30,7 +30,9 @@ export FASTA_PATH=
 # Year and month for the upcoming Open Targets release.
 # For example, if you're processing data for “20.02” release, this variable will be set to `2020-02`.
 export OT_RELEASE=YYYY-MM
+```
 
+```bash
 # Create directory structure for holding all files for the current batch.
 export BATCH_ROOT=${BATCH_ROOT_BASE}/batch-${OT_RELEASE}
 export DATA_DIR=${BATCH_ROOT}/data
