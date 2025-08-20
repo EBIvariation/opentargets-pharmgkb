@@ -365,7 +365,7 @@ def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
     """Generates an evidence string for a PharmGKB clinical annotation."""
     partial_evidence_string = {
         # DATA SOURCE ATTRIBUTES
-        'datasourceId': 'pharmgkb',
+        'datasourceId': 'clinpgx',
         'datasourceVersion': created_date,
 
         # RECORD ATTRIBUTES
