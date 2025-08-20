@@ -372,7 +372,7 @@ def generate_clinical_annotation_evidence(so_accession_dict, created_date, row):
         'datatypeId': 'clinical_annotation',
         'studyId': row[ID_COL_NAME],
         'evidenceLevel': row['Level of Evidence'],
-        'literature': [str(x) for x in row['all_publications']],  # all PMIDs associated with the clinical annotation
+        'literature': list({str(x) for x in row['all_publications']}),  # all PMIDs associated with the clinical annotation
 
         # GENOTYPE/ALLELE ATTRIBUTES
         'genotype': row[GENOTYPE_ALLELE_COL_NAME],
