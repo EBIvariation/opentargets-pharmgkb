@@ -1,5 +1,5 @@
 # opentargets-pharmgkb
-Pipeline to provide evidence strings for Open Targets from PharmGKB
+Pipeline to provide evidence strings for Open Targets from PharmGKB (now part of ClinPGx)
 
 ## Installation
 
@@ -40,10 +40,10 @@ mkdir -p ${BATCH_ROOT} ${DATA_DIR}
 cd ${BATCH_ROOT}
 
 # Download data
-wget https://api.pharmgkb.org/v1/download/file/data/clinicalAnnotations.zip
-wget https://api.pharmgkb.org/v1/download/file/data/variants.zip
-wget https://api.pharmgkb.org/v1/download/file/data/relationships.zip
-wget https://api.pharmgkb.org/v1/download/file/data/variantAnnotations.zip
+wget https://api.clinpgx.org/v1/download/file/data/clinicalAnnotations.zip
+wget https://api.clinpgx.org/v1/download/file/data/variants.zip
+wget https://api.clinpgx.org/v1/download/file/data/relationships.zip
+wget https://api.clinpgx.org/v1/download/file/data/variantAnnotations.zip
 
 unzip -j clinicalAnnotations.zip "*.tsv" -d $DATA_DIR
 unzip -j clinicalAnnotations.zip "CREATED*.txt" -d $DATA_DIR
@@ -89,7 +89,7 @@ datasourceId | Identifier for data source | `"pharmgkb"`
 datasourceVersion | Date when data dump was generated, formatted YYYY-MM-DD | `"2023-08-05"`
 datatypeId | Type of data corresponding to this evidence string (currently only clinical annotation) | `"clinical_annotation"`
 studyId | Clinical Annotation ID | `"1449309937"`
-evidenceLevel |  Level of evidence (see [here](https://www.pharmgkb.org/page/clinAnnLevels)) | `"1A"`
+evidenceLevel |  Level of evidence (see [here](https://www.clinpgx.org/page/clinAnnLevels)) | `"1A"`
 literature | List of PMIDs associated with this clinical annotation | `["11389482", "27857962"]`
 genotypeId | VCF-style (`chr_pos_ref_allele1,allele2`) identifier of genotype; computed as described [below](#variant-coordinate-computation) | `"19_38499645_GGAG_G,GGAG"`
 variantRsId | RS ID of variant | `"rs121918596"`
@@ -109,7 +109,7 @@ phenotypeFromSourceId | EFO ID of phenotype, mapped through ZOOMA / OXO | `"Orph
 Below is an example of a complete clinical annotation evidence string:
 ```
 {
-  "datasourceId": "pharmgkb",
+  "datasourceId": "clinpgx",
   "datasourceVersion": "2023-08-05",
   "datatypeId": "clinical_annotation",
   "studyId": "1449309937",
@@ -159,4 +159,4 @@ The `drugs` property is a list of structs with 2 keys:
 * `drugId`: CHEMBL ID, left empty in this pipeline but populated by Open Targets 
 
 Lists of drugs are kept together (rather than exploded into separate evidence strings) when they're known to be annotated as a drug combination.
-Currently this is only when they're `/`-separated and associated with a single PGKB chemical ID, as in [ivacaftor / lumacaftor](https://www.pharmgkb.org/chemical/PA166152935).
+Currently this is only when they're `/`-separated and associated with a single PGKB chemical ID, as in [ivacaftor / lumacaftor](https://www.clinpgx.org/chemical/PA166152935).
