@@ -5,7 +5,7 @@ import pandas as pd
 
 from opentargets_pharmgkb.pandas_utils import split_and_explode_column
 
-ID_COL_NAME = 'Clinical Annotation ID'
+ID_COL_NAME = 'Summary Annotation ID'
 GENOTYPE_ALLELE_COL_NAME = 'Genotype/Allele'
 VAR_ID_COL_NAME = 'Variant Annotation ID'
 ANNOTATION_TYPE_COL_NAME = 'annotation_type'
