@@ -12,7 +12,7 @@ def test_associate_annotations_with_alleles_snp():
         ['1', 'AA'],
         ['1', 'AG'],
         ['1', 'GG']
-    ], columns=['Clinical Annotation ID', 'Genotype/Allele'])
+    ], columns=['Summary Annotation ID', 'Genotype/Allele'])
     var_annotations_df = pd.DataFrame([
         ['1.1', 'AA + AG'],
         ['1.2', 'AA'],
@@ -27,10 +27,10 @@ def test_associate_annotations_with_alleles_snp():
         ['1', 'AG', '1.3', 'A'],
         ['1', 'GG', np.nan, np.nan],
         [np.nan, np.nan, '1.4', 'TT']
-    ], columns=['Clinical Annotation ID', 'Genotype/Allele', 'Variant Annotation ID', 'Alleles'])
+    ], columns=['Summary Annotation ID', 'Genotype/Allele', 'Variant Annotation ID', 'Alleles'])
     result = associate_annotations_with_alleles(var_annotations_df, clinical_alleles_df)
     assert result[[
-        'Clinical Annotation ID', 'Genotype/Allele', 'Variant Annotation ID', 'Alleles'
+        'Summary Annotation ID', 'Genotype/Allele', 'Variant Annotation ID', 'Alleles'
     ]].reset_index(drop=True).equals(expected_df)
 
 
@@ -41,7 +41,7 @@ def test_associate_annotations_with_alleles_star():
         ['2', '*2'],
         ['2', '*3'],
         ['2', '*4']
-    ], columns=['Clinical Annotation ID', 'Genotype/Allele'])
+    ], columns=['Summary Annotation ID', 'Genotype/Allele'])
     var_annotations_df = pd.DataFrame([
         ['2.1', '*1'],
         ['2.2', '*1/*2'],
@@ -57,10 +57,10 @@ def test_associate_annotations_with_alleles_star():
         ['2', '*3', '2.3', '*1/*2 + *1/*3'],
         ['2', '*4', np.nan, np.nan],
         [np.nan, np.nan, '2.4', '*5']
-    ], columns=['Clinical Annotation ID', 'Genotype/Allele', 'Variant Annotation ID', 'Alleles'])
+    ], columns=['Summary Annotation ID', 'Genotype/Allele', 'Variant Annotation ID', 'Alleles'])
     result = associate_annotations_with_alleles(var_annotations_df, clinical_alleles_df)
     assert result[[
-        'Clinical Annotation ID', 'Genotype/Allele', 'Variant Annotation ID', 'Alleles'
+        'Summary Annotation ID', 'Genotype/Allele', 'Variant Annotation ID', 'Alleles'
     ]].reset_index(drop=True).equals(expected_df)
 
 
@@ -71,7 +71,7 @@ def test_get_variant_annotations():
         ['1', 'GG'],
         ['2', '*1'],
         ['2', '*2']
-    ], columns=['Clinical Annotation ID', 'Genotype/Allele'])
+    ], columns=['Summary Annotation ID', 'Genotype/Allele'])
     var_annotations_df = pd.DataFrame([
         ['1.1', 'AA + AG', '123', 'sentence', 'Associated with', 'increased', 'metabolism of', 'nicotine', np.nan, 'drug'],
         ['1.2', 'AA', '456', 'sentence', 'Associated with', 'decreased', 'response to', 'morphine', 'AG + GG', 'drug'],
@@ -86,7 +86,7 @@ def test_get_variant_annotations():
         ['2', '2.1'],
         ['2', '2.2'],
         ['2', '2.3']
-    ], columns=['Clinical Annotation ID', 'Evidence ID'])
+    ], columns=['Summary Annotation ID', 'Evidence ID'])
     expected_df = pd.DataFrame([
         ['AA', ['1.1', '1.2'], ['123', '456'], ['sentence', 'sentence'], ['AA + AG', 'AA'], ['increased', 'decreased'],
          ['metabolism of', 'response to'], ['nicotine', 'morphine'], [np.nan, 'AG + GG'], ['drug', 'drug'], '1'],
@@ -95,7 +95,7 @@ def test_get_variant_annotations():
         ['*1', ['2.1'], ['789'], ['sentence'], ['*1'], ['increased'], ['risk of'], ['vomiting'], ['*2'], ['phenotype'], '2'],
         ['*2', [], [], [], [], [], [], [], [], [], '2']
     ], columns=['Genotype/Allele', 'Variant Annotation ID', 'PMID', 'Sentence', 'Alleles', 'Direction of effect', 'effect_term', 'object_term',
-                'Comparison Allele(s) or Genotype(s)', 'annotation_type', 'Clinical Annotation ID'])
+                'Comparison Allele(s) or Genotype(s)', 'annotation_type', 'Summary Annotation ID'])
     counts = ClinicalAnnotationCounts()
     result = get_variant_annotations(clinical_alleles_df, clinical_evidence_df, var_annotations_df, counts)
     assert_frame_equal(result.reset_index(drop=True), expected_df, check_like=True)
