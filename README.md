@@ -40,17 +40,17 @@ mkdir -p ${BATCH_ROOT} ${DATA_DIR}
 cd ${BATCH_ROOT}
 
 # Download data
-wget https://api.clinpgx.org/v1/download/file/data/clinicalAnnotations.zip
+wget https://api.clinpgx.org/v1/download/file/data/summaryAnnotations.zip
 wget https://api.clinpgx.org/v1/download/file/data/variants.zip
 wget https://api.clinpgx.org/v1/download/file/data/relationships.zip
 wget https://api.clinpgx.org/v1/download/file/data/variantAnnotations.zip
 
-unzip -j clinicalAnnotations.zip "*.tsv" -d $DATA_DIR
-unzip -j clinicalAnnotations.zip "CREATED*.txt" -d $DATA_DIR
+unzip -j summaryAnnotations.zip "*.tsv" -d $DATA_DIR
+unzip -j summaryAnnotations.zip "CREATED*.txt" -d $DATA_DIR
 unzip -j variants.zip "*.tsv" -d $DATA_DIR
 unzip -j relationships.zip "*.tsv" -d $DATA_DIR
 unzip -j variantAnnotations.zip "*.tsv" -d $DATA_DIR
-rm clinicalAnnotations.zip variants.zip relationships.zip variantAnnotations.zip
+rm summaryAnnotations.zip variants.zip relationships.zip variantAnnotations.zip
 
 # Set the created date
 export CREATED_DATE=`ls $DATA_DIR/CREATED*.txt | sed 's/.*\([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}\).*/\1/'`

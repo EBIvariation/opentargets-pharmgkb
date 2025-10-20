@@ -25,15 +25,15 @@ logging.basicConfig()
 logger = logging.getLogger(__package__)
 logger.setLevel(level=logging.DEBUG)
 
-ID_COL_NAME = 'Clinical Annotation ID'
+ID_COL_NAME = 'Summary Annotation ID'
 GENOTYPE_ALLELE_COL_NAME = 'Genotype/Allele'
 VARIANT_HAPLOTYPE_COL_NAME = 'Variant/Haplotypes'
 
 
 def pipeline(data_dir, fasta_path, created_date, output_path):
-    clinical_annot_path = os.path.join(data_dir, 'clinical_annotations.tsv')
-    clinical_alleles_path = os.path.join(data_dir, 'clinical_ann_alleles.tsv')
-    clinical_evidence_path = os.path.join(data_dir, 'clinical_ann_evidence.tsv')
+    clinical_annot_path = os.path.join(data_dir, 'summary_annotations.tsv')
+    clinical_alleles_path = os.path.join(data_dir, 'summary_ann_alleles.tsv')
+    clinical_evidence_path = os.path.join(data_dir, 'summary_ann_evidence.tsv')
     variants_path = os.path.join(data_dir, 'variants.tsv')
     relationships_path = os.path.join(data_dir, 'relationships.tsv')
     var_drug_path = os.path.join(data_dir, 'var_drug_ann.tsv')

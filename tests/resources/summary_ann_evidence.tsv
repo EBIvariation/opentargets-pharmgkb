@@ -1,4 +1,4 @@
-Clinical Annotation ID	Evidence ID	Evidence Type	Evidence URL	PMID	Summary	Score
+Summary Annotation ID	Evidence ID	Evidence Type	Evidence URL	PMID	Summary	Score
 1450375701	1450375663	Variant Drug Annotation	https://www.pharmgkb.org/variantAnnotation/1450375663	30924126	Allele C is associated with increased response to allopurinol.	0
 1043880328	827778899	Variant Phenotype Annotation	https://www.pharmgkb.org/variantAnnotation/827778899	21435719	Genotype AA is associated with increased likelihood of Neurotoxicity when treated with thalidomide in people with Multiple Myeloma as compared to genotype AG.	1.5
 1183680546	PA166110235	Guideline Annotation	https://www.pharmgkb.org/guidelineAnnotation/PA166110235		Annotation of CPIC Guideline for peginterferon alfa-2a,peginterferon alfa-2b,ribavirin and IFNL3	100

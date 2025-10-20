@@ -22,7 +22,7 @@ oxo_targets = ['Orphanet', 'efo', 'hp', 'mondo']
 oxo_distance = 1
 # Only used for finished mappings, so no need to search synonyms or other ontologies
 ols_query_fields = 'label'
-ols_field_list = 'iri,label'
+ols_field_list = 'iri,label,ontology_name'
 target_ontology = 'EFO'
 preferred_ontologies = [target_ontology]
 
