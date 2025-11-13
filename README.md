@@ -13,7 +13,8 @@ and run `python setup.py install`.
 
 ### 1. Set up the environment
 For EVA, you should log on to Codon SLURM cluster and `become` the EVA production user,
-then refer to the [private repository](https://github.com/EBIvariation/configuration/blob/master/open-targets-configuration.md#pharmgkb) for values.
+then refer to the [private repository](https://github.com/EBIvariation/configuration/blob/master/open-targets/set-up-pgkb.sh) for values
+(or `source` the file directly in the cluster).
 ```bash
 # The directory where subdirectories for each batch will be created
 export BATCH_ROOT_BASE=
@@ -23,6 +24,10 @@ export CODE_ROOT=
 
 # Path to GRCh38 RefSeq FASTA file
 export FASTA_PATH=
+
+# Required for Google Cloud upload
+export OT_BUCKET_NAME=
+export OT_CREDS_FILE=
 ```
 
 ### 2. Download data
@@ -69,7 +74,12 @@ sbatch -t 02:00:00 --mem=8G -J pharmgkb-evidence -o pharmgkb-evidence.out -e pha
 
 Update the [metrics spreadsheet](https://docs.google.com/spreadsheets/d/1Vhdajf_Aps0z9_bbHshbQthl7lHsQLxEnNBKKHUr-GE/edit#gid=0) based on the output of the pipeline.
 
-The evidence string file (`evidence.json`) must be uploaded to the [Open Targets Google Cloud Storage](https://console.cloud.google.com/storage/browser/otar012-eva/) to the **`pharmacogenomics`** folder and be named in the format `cttv012-[yyyy]-[mm]-[dd].json.gz` (e.g. `cttv012-2020-10-21.json.gz`).
+The evidence string file (`evidence.json`) must be compressed and uploaded to the [Open Targets Google Cloud Storage](https://console.cloud.google.com/storage/browser/otar012-eva/).
+To do this, run the following:
+```shell
+gzip evidence.json
+${CODE_ROOT}/env/bin/upload_to_gcloud.py --input-file evidence.json.gz --destination-folder pharmacogenomics
+```
 
 Once the upload is complete, send an email to Open Targets (data [at] opentargets.org) containing the following information:
 * The number of submitted evidence strings
