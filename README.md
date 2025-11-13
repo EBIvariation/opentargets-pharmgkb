@@ -74,10 +74,11 @@ sbatch -t 02:00:00 --mem=8G -J pharmgkb-evidence -o pharmgkb-evidence.out -e pha
 
 Update the [metrics spreadsheet](https://docs.google.com/spreadsheets/d/1Vhdajf_Aps0z9_bbHshbQthl7lHsQLxEnNBKKHUr-GE/edit#gid=0) based on the output of the pipeline.
 
-The evidence string file (`evidence.json`) must be uploaded to the [Open Targets Google Cloud Storage](https://console.cloud.google.com/storage/browser/otar012-eva/).
+The evidence string file (`evidence.json`) must be compressed and uploaded to the [Open Targets Google Cloud Storage](https://console.cloud.google.com/storage/browser/otar012-eva/).
 To do this, run the following:
 ```shell
-${CODE_ROOT}/env/bin/upload_to_gcloud.py --input-file evidence.json --destination-folder pharmacogenomics
+gzip evidence.json
+${CODE_ROOT}/env/bin/upload_to_gcloud.py --input-file evidence.json.gz --destination-folder pharmacogenomics
 ```
 
 Once the upload is complete, send an email to Open Targets (data [at] opentargets.org) containing the following information:
