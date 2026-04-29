@@ -32,7 +32,6 @@ GENOTYPE_ALLELE_COL_NAME = 'Genotype/Allele'
 VARIANT_HAPLOTYPE_COL_NAME = 'Variant/Haplotypes'
 
 INVALID_EVIDENCE_FILE_NAME = 'invalid_evidence.json'
-REMOVED_MAPPINGS_FILE_NAME = 'removed_mappings.tsv'
 
 
 def pipeline(data_dir, fasta_path, mappings_path, created_date, output_path):
@@ -128,7 +127,7 @@ def pipeline(data_dir, fasta_path, mappings_path, created_date, output_path):
     invalid_evidence_strings = []
     with open(output_path, 'w+') as output:
         for ev_string in evidence:
-            if validate_evidence_string(ev_string, ot_schema_contents):
+            if validate_evidence_string(ev_string):
                 output.write(json.dumps(ev_string)+'\n')
             else:
                 counts.invalid_evidence += 1
