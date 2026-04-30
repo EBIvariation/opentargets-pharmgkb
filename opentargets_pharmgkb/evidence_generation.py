@@ -32,7 +32,6 @@ GENOTYPE_ALLELE_COL_NAME = 'Genotype/Allele'
 VARIANT_HAPLOTYPE_COL_NAME = 'Variant/Haplotypes'
 
 INVALID_EVIDENCE_FILE_NAME = 'invalid_evidence.json'
-REMOVED_MAPPINGS_FILE_NAME = 'removed_mappings.tsv'
 
 
 def pipeline(data_dir, fasta_path, mappings_path, created_date, output_path):
@@ -57,14 +56,8 @@ def pipeline(data_dir, fasta_path, mappings_path, created_date, output_path):
                                                             read_tsv_to_df(var_fa_path))
     output_dir = os.path.dirname(output_path)
 
-    # Load latest mappings, including filtering by json schema regex
-    ot_schema_contents = get_ot_json_schema()
-    ontology_id_regex = ot_schema_contents['properties']['phenotypeFromSourceId']['pattern']
-    latest_mappings, _, nonmatching_mappings = load_ontology_mapping(mappings_path, ontology_id_regex)
-    if nonmatching_mappings:
-        with open(os.path.join(output_dir, REMOVED_MAPPINGS_FILE_NAME), 'w+') as outfile:
-            writer = csv.writer(outfile, delimiter='\t')
-            writer.writerows(sorted(list(nonmatching_mappings)))
+    # Load latest mappings
+    latest_mappings, _, _ = load_ontology_mapping(mappings_path)
 
     # Gather input counts
     counts = ClinicalAnnotationCounts()
@@ -134,7 +127,7 @@ def pipeline(data_dir, fasta_path, mappings_path, created_date, output_path):
     invalid_evidence_strings = []
     with open(output_path, 'w+') as output:
         for ev_string in evidence:
-            if validate_evidence_string(ev_string, ot_schema_contents):
+            if validate_evidence_string(ev_string):
                 output.write(json.dumps(ev_string)+'\n')
             else:
                 counts.invalid_evidence += 1
@@ -366,8 +359,11 @@ def explode_and_map_phenotypes(df, latest_mappings):
         # Allow processes to share latest_mappings
         mappings_dict = manager.dict()
         mappings_dict.update(latest_mappings)
+        # Regex from JSON schema to filter mappings
+        ot_schema_contents = get_ot_json_schema()
+        ontology_id_regex = ot_schema_contents['properties']['phenotypeFromSourceId']['pattern']
         str_to_iri = {
-            s: pool.apply(get_efo_iri, args=(s, mappings_dict))
+            s: pool.apply(get_efo_iri, args=(s, mappings_dict, ontology_id_regex))
             for s in split_phenotypes['split_phenotype'].drop_duplicates().tolist()
         }
     mapped_phenotypes = pd.concat(

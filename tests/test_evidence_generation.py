@@ -6,8 +6,7 @@ import pytest
 
 from opentargets_pharmgkb import evidence_generation
 from opentargets_pharmgkb.evidence_generation import get_functional_consequences, explode_drugs, \
-    read_tsv_to_df, explode_and_map_genes, get_genotype_ids, get_haplotype_ids, INVALID_EVIDENCE_FILE_NAME, \
-    REMOVED_MAPPINGS_FILE_NAME
+    read_tsv_to_df, explode_and_map_genes, get_genotype_ids, get_haplotype_ids, INVALID_EVIDENCE_FILE_NAME
 from tests.conftest import fasta_path, resources_dir, mappings_path
 
 
@@ -100,8 +99,7 @@ def test_pipeline():
     with open(output_path) as test_output, open(expected_path) as expected_output:
         assert sorted(test_output.readlines()) == sorted(expected_output.readlines())
 
-    for path in [output_path, os.path.join(resources_dir, INVALID_EVIDENCE_FILE_NAME),
-                 os.path.join(resources_dir, REMOVED_MAPPINGS_FILE_NAME)]:
+    for path in [output_path, os.path.join(resources_dir, INVALID_EVIDENCE_FILE_NAME)]:
         if os.path.exists(path):
             os.remove(path)
 
