@@ -24,7 +24,7 @@ oxo_distance = 1
 ols_query_fields = 'label'
 ols_field_list = 'iri,label,ontology_name'
 target_ontology = 'EFO'
-preferred_ontologies = [target_ontology]
+preferred_ontologies = []
 
 # Cache mappings for phenotypes. Note:
 # - Can't use latest_mappings directly, as we need to check mappings are still current
