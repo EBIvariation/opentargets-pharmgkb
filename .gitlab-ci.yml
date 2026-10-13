@@ -6,6 +6,8 @@ test:
   stage: test
   image: python:3.11-slim-bookworm
   before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends git
     - python -m pip install --upgrade pip
     - pip install pytest certifi
     - if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
