@@ -7,9 +7,15 @@ The pipeline only requires Python 3.8+.
 Clone the repository (or download a tagged [release](https://github.com/EBIvariation/opentargets-pharmgkb/releases))
 and run `python setup.py install`.
 
-(For EVA users, you have to manually run the deployment script for now, pending automated deployment.)
+For EVA users, the pipeline is automatically deployed via Gitlab.
 
 ## How to run
+
+The pipeline is run automatically every month via cron job, using the currently deployed version of the pipeline and the
+most recent release of ClinPGx data. The below steps can be used if needed to run the pipeline on demand.
+
+At least once per quarter, we will continue to check the logs and perform the [manual follow-up actions](#4-manual-follow-up-actions)
+in order to submit the most recent batch of evidence.
 
 ### 1. Set up the environment
 For EVA, you should log on to Codon SLURM cluster and `become` the EVA production user,
@@ -83,14 +89,6 @@ To do this, run the following:
 gzip evidence.json
 ${CODE_ROOT}/env/bin/upload_to_gcloud.py --input-file evidence.json.gz --destination-folder pharmacogenomics
 ```
-
-Once the upload is complete, send an email to Open Targets (data [at] opentargets.org) containing the following information:
-* The number of submitted evidence strings
-* The PharmGKB release date
-* The Ensembl release
-* The EFO version used for mapping
-* The `opentargets-pharmgkb` pipeline version
-* The Open Targets JSON schema version
 
 ## Schema documentation
 

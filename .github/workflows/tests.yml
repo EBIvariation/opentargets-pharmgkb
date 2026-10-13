@@ -2,7 +2,7 @@ name: Open Targets PharmGKB pipelines
 
 on:
   pull_request:
-    branches: [ main, doe-prototype ]
+    branches: [ main ]
   workflow_dispatch:
 
 permissions:
