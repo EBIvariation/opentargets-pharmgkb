@@ -17,7 +17,7 @@ test:
   only:
     - external_pull_requests
     - tags
-    - master
+    - main
 
 
 # Not executed, parent job definition
@@ -47,7 +47,7 @@ deploy-python-tool-development:
     DEPLOY_POINT: $CI_COMMIT_BRANCH
   only:
     - external_pull_requests
-    - master
+    - main
 
 deploy-python-tool-production:
   extends: .deploy-python-tool
