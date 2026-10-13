@@ -10,10 +10,6 @@ test:
     - pip install pytest certifi
     - if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - python setup.py install
-    # reduce the default SSL security level to get around a misconfiguration in the Ensembl server
-    # https://github.com/Ensembl/ensembl-rest/issues/427
-    # See https://askubuntu.com/a/1233456
-    - sed -i 's/DEFAULT@SECLEVEL=2/DEFAULT@SECLEVEL=1/' /usr/lib/ssl/openssl.cnf
   script:
     - PYTHONPATH=. pytest tests
   environment:
