@@ -3,21 +3,16 @@ import logging
 import os
 
 import jsonschema
-import requests
 
 logging.basicConfig()
 logger = logging.getLogger(__package__)
 logger.setLevel(level=logging.DEBUG)
 
-OT_SCHEMA_VERSION = open(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'OT_SCHEMA_VERSION')).read().strip()
+OT_JSON_SCHEMA = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'etc/pharmacogenomics.json')
 
-
-def get_ot_json_schema(version=OT_SCHEMA_VERSION):
-    schema_url = f'https://raw.githubusercontent.com/opentargets/json_schema/{version}/schemas/pharmacogenomics.json'
-    response = requests.get(schema_url)
-    if response.ok:
-        return response.json()
-    raise ValueError('Problem getting JSON schema')
+def get_ot_json_schema():
+    with open(OT_JSON_SCHEMA) as f:
+        return json.load(f)
 
 
 def validate_evidence_string(ev_string, ot_schema_contents=None):
