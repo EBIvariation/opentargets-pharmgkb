@@ -10,10 +10,10 @@ def get_requires():
 
 
 setup(name='opentargets_pharmgkb',
-      version='0.3.1',
+      version='0.3.2.dev0',
       packages=find_packages(),
       package_data={
-          'opentargets_pharmgkb': ['OT_SCHEMA_VERSION']
+          'opentargets_pharmgkb': ['etc/*']
       },
       install_requires=get_requires(),
       tests_require=get_requires(),
