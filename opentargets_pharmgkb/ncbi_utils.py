@@ -1,4 +1,5 @@
 import logging
+import os
 
 import requests
 
@@ -11,13 +12,13 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 eutils_url = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/'
-esearch_url = eutils_url + 'esearch.fcgi'
 esummary_url = eutils_url + 'esummary.fcgi'
 efetch_url = eutils_url + 'efetch.fcgi'
+eutils_api_key = os.environ.get('EUTILS_API_KEY')
 
 
 @retry(exceptions=(ConnectionError, RequestException), tries=4, delay=2, backoff=1.2, jitter=(1, 3))
-def get_rsid_summaries(rsids, api_key=None):
+def get_rsid_summaries(rsids, api_key=eutils_api_key):
     payload = {'db': 'snp', 'id': ','.join(rsids), 'retmode': 'JSON'}
     if api_key:
         payload['api_key'] = api_key
